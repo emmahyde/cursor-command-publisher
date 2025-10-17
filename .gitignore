@@ -9,3 +9,5 @@ build/
 *.d.ts.map
 *.js.map
 tests/**/*.js
+tests/**/*.d.ts
+tests/**/*.js.map
