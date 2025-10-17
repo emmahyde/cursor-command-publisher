@@ -308,4 +308,139 @@ Echo: #{text}`;
 
     await server._watcher.stop();
   });
+
+  it('handles optional parameters in schema', async () => {
+    const cmdFile = path.join(testDir, 'optional-schema.md');
+    const content = `---
+required: "required field"
+optional?: "optional field"
+---
+#{required} #{optional?}`;
+
+    await fs.writeFile(cmdFile, content);
+
+    server = createCommandServer(testDir);
+    await server._watcher.start();
+    await new Promise(resolve => setTimeout(resolve, 300));
+
+    const tool = server._tools.get('optional-schema');
+    const schema = tool?.parsed.inputSchema;
+
+    expect(schema.type).toBe('object');
+    expect(schema.properties.required).toBeDefined();
+    expect(schema.properties.optional).toBeDefined();
+    expect(schema.required).toContain('required');
+    expect(schema.required).not.toContain('optional');
+
+    await server._watcher.stop();
+  });
+
+  it('does not require optional parameters in validation', async () => {
+    const cmdFile = path.join(testDir, 'optional-validation.md');
+    const content = `---
+name: "person's name"
+title?: "optional title"
+---
+Hello #{title?}#{name}!`;
+
+    await fs.writeFile(cmdFile, content);
+
+    server = createCommandServer(testDir);
+    await server._watcher.start();
+    await new Promise(resolve => setTimeout(resolve, 300));
+
+    const tool = server._tools.get('optional-validation');
+
+    // Verify required/optional classification
+    const nameVar = tool?.parsed.vars.find((v: any) => v.name === 'name');
+    const titleVar = tool?.parsed.vars.find((v: any) => v.name === 'title');
+
+    expect(nameVar?.optional).toBe(false);
+    expect(titleVar?.optional).toBe(true);
+
+    await server._watcher.stop();
+  });
+
+  it('treats empty string as intentionally null for optional fields', async () => {
+    const cmdFile = path.join(testDir, 'optional-empty.md');
+    const content = `---
+greeting: "greeting text"
+title?: "optional title"
+name: "person's name"
+---
+#{greeting} #{title?}#{name}!`;
+
+    await fs.writeFile(cmdFile, content);
+
+    server = createCommandServer(testDir);
+    await server._watcher.start();
+    await new Promise(resolve => setTimeout(resolve, 300));
+
+    const tool = server._tools.get('optional-empty');
+    expect(tool).toBeDefined();
+    expect(tool?.parsed.vars).toHaveLength(3);
+
+    // Verify title is marked optional
+    const titleVar = tool?.parsed.vars.find((v: any) => v.name === 'title');
+    expect(titleVar?.optional).toBe(true);
+
+    await server._watcher.stop();
+  });
+
+  it('handles multiple optional parameters', async () => {
+    const cmdFile = path.join(testDir, 'multi-optional.md');
+    const content = `---
+name: "person's name"
+title?: "optional title"
+suffix?: "optional suffix"
+---
+#{title?}#{name}#{suffix?}`;
+
+    await fs.writeFile(cmdFile, content);
+
+    server = createCommandServer(testDir);
+    await server._watcher.start();
+    await new Promise(resolve => setTimeout(resolve, 300));
+
+    const tool = server._tools.get('multi-optional');
+    expect(tool?.parsed.vars).toHaveLength(3);
+
+    const nameVar = tool?.parsed.vars.find((v: any) => v.name === 'name');
+    const titleVar = tool?.parsed.vars.find((v: any) => v.name === 'title');
+    const suffixVar = tool?.parsed.vars.find((v: any) => v.name === 'suffix');
+
+    expect(nameVar?.optional).toBe(false);
+    expect(titleVar?.optional).toBe(true);
+    expect(suffixVar?.optional).toBe(true);
+
+    expect(tool?.parsed.inputSchema.required).toEqual(['name']);
+
+    await server._watcher.stop();
+  });
+
+  it('handles prompts with optional parameters', async () => {
+    const cmdFile = path.join(testDir, 'prompt-optional.md');
+    const content = `---
+topic: "topic of discussion"
+context?: "optional context"
+---
+Discuss #{topic}#{context? with context: }#{context?}`;
+
+    await fs.writeFile(cmdFile, content);
+
+    server = createCommandServer(testDir);
+    await server._watcher.start();
+    await new Promise(resolve => setTimeout(resolve, 300));
+
+    const tool = server._tools.get('prompt-optional');
+
+    // Verify prompt arguments have correct required flags
+    const topicVar = tool?.parsed.vars.find((v: any) => v.name === 'topic');
+    const contextVar = tool?.parsed.vars.find((v: any) => v.name === 'context');
+
+    expect(topicVar?.optional).toBe(false);
+    expect(contextVar?.optional).toBe(true);
+
+    await server._watcher.stop();
+  });
 });

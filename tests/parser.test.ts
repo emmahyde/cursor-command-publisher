@@ -425,3 +425,214 @@ Example usage: #{example}`;
     expect(rendered).toContain('#{example}'); // Literal because not in frontmatter
   });
 });
+
+describe('Parser - Optional Parameters', () => {
+  it('parses optional placeholder with ? syntax in body', () => {
+    const template = `---
+name: "person's name"
+suffix?: "optional title/suffix"
+---
+Hello #{name}#{suffix?}!`;
+    const result = parseTemplate(template);
+    expect(result.vars).toHaveLength(2);
+    expect(result.vars[0]?.name).toBe('name');
+    expect(result.vars[0]?.optional).toBe(false);
+    expect(result.vars[1]?.name).toBe('suffix');
+    expect(result.vars[1]?.optional).toBe(true);
+  });
+
+  it('parses optional field with ?:  syntax in frontmatter', () => {
+    const template = `---
+name: "person's name"
+title?: "optional title"
+---
+#{title?}#{name}`;
+    const result = parseTemplate(template);
+    expect(result.vars).toHaveLength(2);
+    const titleVar = result.vars.find(v => v.name === 'title');
+    expect(titleVar?.optional).toBe(true);
+    const nameVar = result.vars.find(v => v.name === 'name');
+    expect(nameVar?.optional).toBe(false);
+  });
+
+  it('treats optional field with empty string as intentionally null', () => {
+    const template = `---
+name: "person's name"
+title?: "optional title"
+---
+Hello #{title?}#{name}!`;
+    const parsed = parseTemplate(template);
+    const result = renderTemplate(parsed, { name: 'Emma', title: '' });
+    expect(result).toBe('Hello Emma!');
+  });
+
+  it('renders optional field with provided value', () => {
+    const template = `---
+name: "person's name"
+title?: "optional title"
+---
+Hello #{title?}#{name}!`;
+    const parsed = parseTemplate(template);
+    const result = renderTemplate(parsed, { name: 'Emma', title: 'Dr. ' });
+    expect(result).toBe('Hello Dr. Emma!');
+  });
+
+  it('renders optional field when omitted from arguments', () => {
+    const template = `---
+name: "person's name"
+title?: "optional title"
+---
+Hello #{title?}#{name}!`;
+    const parsed = parseTemplate(template);
+    const result = renderTemplate(parsed, { name: 'Emma' });
+    expect(result).toBe('Hello #{title}Emma!');
+  });
+
+  it('marks optional fields as not required in JSON schema', () => {
+    const template = `---
+required: "required field"
+optional?: "optional field"
+---
+#{required} #{optional?}`;
+    const result = parseTemplate(template);
+    expect(result.inputSchema.required).toContain('required');
+    expect(result.inputSchema.required).not.toContain('optional');
+    expect(result.inputSchema.properties).toHaveProperty('required');
+    expect(result.inputSchema.properties).toHaveProperty('optional');
+  });
+
+  it('handles multiple optional fields', () => {
+    const template = `---
+name: "person's name"
+title?: "optional title"
+suffix?: "optional suffix"
+---
+#{title?}#{name}#{suffix?}`;
+    const result = parseTemplate(template);
+    expect(result.vars).toHaveLength(3);
+    expect(result.inputSchema.required).toEqual(['name']);
+    expect(result.inputSchema.required).not.toContain('title');
+    expect(result.inputSchema.required).not.toContain('suffix');
+  });
+
+  it('handles mix of required and optional with empty strings', () => {
+    const template = `---
+greeting: "greeting text"
+title?: "optional title"
+name: "person's name"
+suffix?: "optional suffix"
+---
+#{greeting} #{title?}#{name}#{suffix?}!`;
+    const parsed = parseTemplate(template);
+    const result = renderTemplate(parsed, {
+      greeting: 'Hello',
+      title: '',
+      name: 'Emma',
+      suffix: '',
+    });
+    expect(result).toBe('Hello Emma!');
+  });
+
+  it('handles optional with value and empty optional together', () => {
+    const template = `---
+title?: "optional title"
+name: "person's name"
+suffix?: "optional suffix"
+---
+#{title?}#{name}#{suffix?}`;
+    const parsed = parseTemplate(template);
+    const result = renderTemplate(parsed, {
+      title: 'Dr. ',
+      name: 'Emma',
+      suffix: '',
+    });
+    expect(result).toBe('Dr. Emma');
+  });
+
+  it('allows optional in frontmatter without ? in placeholder', () => {
+    const template = `---
+name: "person's name"
+title?: "optional title"
+---
+Hello #{title}#{name}!`;
+    const result = parseTemplate(template);
+    const titleVar = result.vars.find(v => v.name === 'title');
+    expect(titleVar?.optional).toBe(true);
+  });
+
+  it('requires ? in placeholder for optional detection from body', () => {
+    const template = `---
+name: "person's name"
+title: "title"
+---
+Hello #{name}#{title?}!`;
+    const result = parseTemplate(template);
+    const nameVar = result.vars.find(v => v.name === 'name');
+    const titleVar = result.vars.find(v => v.name === 'title');
+
+    // name is not optional (no ? in placeholder)
+    expect(nameVar?.optional).toBe(false);
+
+    // title is optional because of ? in placeholder
+    expect(titleVar?.optional).toBe(true);
+  });
+
+  it('combines frontmatter optional with placeholder optional', () => {
+    const template = `---
+name: "person's name"
+title?: "optional title"
+---
+Hello #{title?}#{name}!`;
+    const result = parseTemplate(template);
+    const titleVar = result.vars.find(v => v.name === 'title');
+    expect(titleVar?.optional).toBe(true);
+  });
+
+  it('treats non-empty string as valid value for optional', () => {
+    const template = `---
+prefix?: "optional prefix"
+name: "person's name"
+---
+#{prefix?}#{name}`;
+    const parsed = parseTemplate(template);
+    const result = renderTemplate(parsed, {
+      prefix: 'Ms. ',
+      name: 'Emma Hyde',
+    });
+    expect(result).toBe('Ms. Emma Hyde');
+  });
+
+  it('handles optional fields in complex template', () => {
+    const template = `---
+topic: "topic of the article"
+path: "location to entrypoint file"
+author?: "author name"
+date?: "publication date"
+---
+# #{topic}
+
+Documentation for #{path}#{author? and \n\nAuthor: }#{author?}#{date? and \n\nDate: }#{date?}`;
+
+    const parsed = parseTemplate(template);
+
+    // Test with all fields provided
+    const withAll = renderTemplate(parsed, {
+      topic: 'Testing',
+      path: '/src/test.ts',
+      author: 'Emma Hyde',
+      date: '2025-10-17',
+    });
+    expect(withAll).toContain('Author: Emma Hyde');
+    expect(withAll).toContain('Date: 2025-10-17');
+
+    // Test with empty optional fields (intentionally null)
+    const withoutOptional = renderTemplate(parsed, {
+      topic: 'Testing',
+      path: '/src/test.ts',
+      author: '',
+      date: '',
+    });
+    expect(withoutOptional).not.toContain('Author:');
+    expect(withoutOptional).not.toContain('Date:');
+  });
+});
