@@ -32,13 +32,3 @@ jobs:
       - run: npm run build
 
       - run: npm test
-
-      - name: Upload coverage
-        if: always()
-        uses: codecov/codecov-action@v4
-        with:
-          files: ./coverage/coverage-final.json
-          flags: unittests
-          fail_ci_if_error: false
-        env:
-          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
