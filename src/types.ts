@@ -1,13 +1,22 @@
 type Placeholder = {
+  type: 'placeholder';
   name: string;
   description?: string;
-  start: number;
-  end: number;
+  start?: number;
+  end?: number;
   optional: boolean;
 };
 
+type ConditionalBlock = {
+  type: 'block';
+  variable: string;
+  content: ASTNode[];
+};
+
+type ASTNode = string | Placeholder | ConditionalBlock;
+
 type ParsedTemplate = {
-  ast: Array<string | Placeholder>;
+  ast: ASTNode[];
   vars: Placeholder[];
   template: string;
   inputSchema: {
@@ -23,4 +32,10 @@ interface RegisteredTool {
   parsed: ParsedTemplate;
 }
 
-export type { RegisteredTool, ParsedTemplate, Placeholder };
+export type {
+  RegisteredTool,
+  ParsedTemplate,
+  Placeholder,
+  ConditionalBlock,
+  ASTNode,
+};

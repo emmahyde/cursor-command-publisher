@@ -5,15 +5,16 @@
 
 import path from 'path';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
+import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
   ListPromptsRequestSchema,
   GetPromptRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
-import { parseTemplate, renderTemplate } from './parser.ts';
-import { createCommandWatcher } from './watcher.ts';
-import type { RegisteredTool } from './types.ts';
+import { parseTemplate, renderTemplate } from './parser.js';
+import { createCommandWatcher } from './watcher.js';
+import type { RegisteredTool } from './types.js';
 
 /**
  * Creates an MCP server with dynamic command loading from markdown templates.
@@ -147,9 +148,7 @@ const createCommandServer = (commandsDirs: string[]) => {
    * @param {Transport} transport - MCP transport layer (typically StdioServerTransport)
    * @returns {Promise<void>}
    */
-  const start = async (transport: {
-    start?: () => Promise<void>;
-  }): Promise<void> => {
+  const start = async (transport: Transport): Promise<void> => {
     await watcher.start();
     await server.connect(transport);
   };

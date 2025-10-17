@@ -606,12 +606,14 @@ name: "person's name"
     const template = `---
 topic: "topic of the article"
 path: "location to entrypoint file"
+authorPrefix?: "text before author"
 author?: "author name"
+datePrefix?: "text before date"
 date?: "publication date"
 ---
 # #{topic}
 
-Documentation for #{path}#{author? and \n\nAuthor: }#{author?}#{date? and \n\nDate: }#{date?}`;
+Documentation for #{path}#{authorPrefix?}#{author?}#{datePrefix?}#{date?}`;
 
     const parsed = parseTemplate(template);
 
@@ -619,7 +621,9 @@ Documentation for #{path}#{author? and \n\nAuthor: }#{author?}#{date? and \n\nDa
     const withAll = renderTemplate(parsed, {
       topic: 'Testing',
       path: '/src/test.ts',
+      authorPrefix: '\n\nAuthor: ',
       author: 'Emma Hyde',
+      datePrefix: '\n\nDate: ',
       date: '2025-10-17',
     });
     expect(withAll).toContain('Author: Emma Hyde');
@@ -629,10 +633,246 @@ Documentation for #{path}#{author? and \n\nAuthor: }#{author?}#{date? and \n\nDa
     const withoutOptional = renderTemplate(parsed, {
       topic: 'Testing',
       path: '/src/test.ts',
+      authorPrefix: '',
       author: '',
+      datePrefix: '',
       date: '',
     });
     expect(withoutOptional).not.toContain('Author:');
     expect(withoutOptional).not.toContain('Date:');
+  });
+});
+
+describe('Parser - Conditional Blocks', () => {
+  it('parses simple conditional block', () => {
+    const template = `---
+author?: "author name"
+---
+# Documentation
+
+#{?author}
+Author: #{author}
+#{/author}`;
+    const result = parseTemplate(template);
+    expect(result.vars).toHaveLength(1);
+    expect(result.vars[0]?.name).toBe('author');
+    expect(result.vars[0]?.optional).toBe(true);
+  });
+
+  it('renders block when variable has value', () => {
+    const template = `---
+author?: "author name"
+---
+# Documentation
+#{?author}
+Author: #{author}
+#{/author}`;
+    const parsed = parseTemplate(template);
+    const result = renderTemplate(parsed, { author: 'Emma Hyde' });
+    expect(result).toContain('Author: Emma Hyde');
+  });
+
+  it('skips block when variable is empty', () => {
+    const template = `---
+author?: "author name"
+---
+# Documentation
+#{?author}
+Author: #{author}
+#{/author}`;
+    const parsed = parseTemplate(template);
+    const result = renderTemplate(parsed, { author: '' });
+    expect(result).not.toContain('Author:');
+    expect(result).toBe('# Documentation\n');
+  });
+
+  it('skips block when variable is omitted', () => {
+    const template = `---
+author?: "author name"
+---
+# Documentation
+#{?author}
+Author: #{author}
+#{/author}`;
+    const parsed = parseTemplate(template);
+    const result = renderTemplate(parsed, {});
+    expect(result).not.toContain('Author:');
+  });
+
+  it('handles multiple blocks', () => {
+    const template = `---
+author?: "author name"
+date?: "publication date"
+---
+# Documentation
+#{?author}
+Author: #{author}
+#{/author}
+#{?date}
+Date: #{date}
+#{/date}`;
+    const parsed = parseTemplate(template);
+
+    // Both provided
+    const withBoth = renderTemplate(parsed, {
+      author: 'Emma',
+      date: '2025-10-17',
+    });
+    expect(withBoth).toContain('Author: Emma');
+    expect(withBoth).toContain('Date: 2025-10-17');
+
+    // Only author
+    const onlyAuthor = renderTemplate(parsed, { author: 'Emma', date: '' });
+    expect(onlyAuthor).toContain('Author: Emma');
+    expect(onlyAuthor).not.toContain('Date:');
+
+    // Neither
+    const neither = renderTemplate(parsed, { author: '', date: '' });
+    expect(neither).not.toContain('Author:');
+    expect(neither).not.toContain('Date:');
+  });
+
+  it('handles nested placeholders inside blocks', () => {
+    const template = `---
+section?: "section name"
+topic: "main topic"
+---
+Main: #{topic}
+#{?section}
+Section: #{section} for #{topic}
+#{/section}`;
+    const parsed = parseTemplate(template);
+    const result = renderTemplate(parsed, {
+      section: 'Advanced',
+      topic: 'Testing',
+    });
+    expect(result).toContain('Main: Testing');
+    expect(result).toContain('Section: Advanced for Testing');
+  });
+
+  it('handles block end with explicit variable name', () => {
+    const template = `---
+author?: "author name"
+---
+#{?author}
+Author: #{author}
+#{/author}`;
+    const parsed = parseTemplate(template);
+    const result = renderTemplate(parsed, { author: 'Emma' });
+    expect(result).toContain('Author: Emma');
+  });
+
+  it('handles block end with just #{/}', () => {
+    const template = `---
+author?: "author name"
+---
+#{?author}
+Author: #{author}
+#{/}`;
+    const parsed = parseTemplate(template);
+    const result = renderTemplate(parsed, { author: 'Emma' });
+    expect(result).toContain('Author: Emma');
+  });
+
+  it('treats mismatched block end as literal', () => {
+    const template = `---
+author?: "author name"
+---
+#{?author}
+Content
+#{/wrongname}`;
+    const parsed = parseTemplate(template);
+    const result = renderTemplate(parsed, { author: 'Emma' });
+    // Mismatched end tag should be treated as literal
+    expect(result).toContain('#{/wrongname}');
+  });
+
+  it('treats unclosed block as warning', () => {
+    const template = `---
+author?: "author name"
+---
+#{?author}
+Content without closing tag`;
+    // Should not throw, but may log warning
+    expect(() => parseTemplate(template)).not.toThrow();
+  });
+
+  it('handles block without defined variable in frontmatter', () => {
+    const template = `---
+name: "person name"
+---
+#{?undefined}
+This should work
+#{/undefined}
+Hello #{name}`;
+    const parsed = parseTemplate(template);
+    // Block creates implicit optional variable
+    const undefinedVar = parsed.vars.find(v => v.name === 'undefined');
+    expect(undefinedVar).toBeDefined();
+    expect(undefinedVar?.optional).toBe(true);
+  });
+
+  it('handles blocks with whitespace', () => {
+    const template = `---
+note?: "optional note"
+---
+Main content
+#{?note}
+
+Note: #{note}
+
+#{/note}
+End`;
+    const parsed = parseTemplate(template);
+    const withNote = renderTemplate(parsed, { note: 'Important!' });
+    expect(withNote).toContain('Note: Important!');
+
+    const withoutNote = renderTemplate(parsed, { note: '' });
+    expect(withoutNote).not.toContain('Note:');
+    expect(withoutNote).toContain('Main content');
+    expect(withoutNote).toContain('End');
+  });
+
+  it('renders complex documentation template', () => {
+    const template = `---
+title: "document title"
+author?: "author name"
+version?: "version number"
+---
+# #{title}
+
+#{?author}
+## Author Information
+Written by: #{author}
+#{/author}
+
+#{?version}
+## Version
+Version: #{version}
+#{/version}
+
+## Content
+Main documentation here.`;
+
+    const parsed = parseTemplate(template);
+
+    const full = renderTemplate(parsed, {
+      title: 'API Documentation',
+      author: 'Emma Hyde',
+      version: '1.0.0',
+    });
+    expect(full).toContain('# API Documentation');
+    expect(full).toContain('Written by: Emma Hyde');
+    expect(full).toContain('Version: 1.0.0');
+
+    const minimal = renderTemplate(parsed, {
+      title: 'API Documentation',
+      author: '',
+      version: '',
+    });
+    expect(minimal).toContain('# API Documentation');
+    expect(minimal).not.toContain('Author Information');
+    expect(minimal).not.toContain('Version:');
+    expect(minimal).toContain('Main documentation here');
   });
 });
