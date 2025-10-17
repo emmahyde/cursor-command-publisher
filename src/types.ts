@@ -3,6 +3,7 @@ type Placeholder = {
   description?: string;
   start: number;
   end: number;
+  optional: boolean;
 };
 
 type ParsedTemplate = {

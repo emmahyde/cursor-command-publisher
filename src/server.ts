@@ -75,6 +75,7 @@ const createCommandServer = (commandsDirs: string[]) => {
     if (!tool) throw new Error(`Tool not found: ${name}`);
 
     const missing = tool.parsed.vars
+      .filter(v => !v.optional)
       .map(v => v.name)
       .filter(v => !(v in (args as Record<string, unknown>)));
     if (missing.length)
@@ -95,7 +96,7 @@ const createCommandServer = (commandsDirs: string[]) => {
       arguments: tool.parsed.vars.map(v => ({
         name: v.name,
         description: v.description ?? `Variable: ${v.name}`,
-        required: true,
+        required: !v.optional,
       })),
     })),
   }));

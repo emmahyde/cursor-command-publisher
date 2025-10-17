@@ -7,7 +7,7 @@
 import YAML from 'yaml';
 import { ParsedTemplate, Placeholder } from './types.ts';
 
-const PLACEHOLDER_PATTERN = /#\{([^}]+)\}/g;
+const PLACEHOLDER_PATTERN = /#\{([^}?]+)(\?)?}/g;
 const FRONTMATTER_PATTERN = /^---\s*\n([\s\S]*?)\n---\s*\n([\s\S]*)$/;
 
 /**
@@ -34,7 +34,7 @@ const parseTemplate = (content: string): ParsedTemplate => {
  */
 const buildASTFromBody = (
   body: string,
-  frontmatter: Record<string, string>
+  frontmatter: Record<string, { value: string; optional: boolean }>
 ): { ast: Array<string | Placeholder>; variables: Placeholder[] } => {
   const ast: Array<string | Placeholder> = [];
   const variables: Placeholder[] = [];
@@ -54,12 +54,16 @@ const buildASTFromBody = (
 
     // Process placeholder - only treat as variable if defined in frontmatter
     const placeholderName = (match[1] || '').trim();
-    if (placeholderName && frontmatter[placeholderName] !== undefined) {
+    const isOptional = !!match[2]; // Captures the ? if present
+
+    const frontmatterEntry = frontmatter[placeholderName];
+    if (placeholderName && frontmatterEntry !== undefined) {
       const placeholder = createPlaceholder(
         placeholderName,
         matchStartIndex,
         matchEndIndex,
-        frontmatter[placeholderName]
+        frontmatterEntry.value,
+        isOptional || frontmatterEntry.optional
       );
 
       ast.push(placeholder);
@@ -92,12 +96,14 @@ const createPlaceholder = (
   name: string,
   startIndex: number,
   endIndex: number,
-  description?: string
+  description?: string,
+  optional: boolean = false
 ): Placeholder => ({
   name,
   description,
   start: startIndex,
   end: endIndex,
+  optional,
 });
 
 /**
@@ -120,7 +126,9 @@ const buildJSONSchema = (variables: Placeholder[]) => {
     {} as Record<string, { type: 'string'; description: string }>
   );
 
-  const required = variables.map(variable => variable.name);
+  const required = variables
+    .filter(variable => !variable.optional)
+    .map(variable => variable.name);
 
   return {
     type: 'object' as const,
@@ -132,12 +140,12 @@ const buildJSONSchema = (variables: Placeholder[]) => {
 /**
  * Extracts YAML frontmatter from markdown content.
  * @param {string} content - Full markdown content
- * @returns {{ frontmatter: Record<string, string>; body: string }} Parsed YAML and body content
+ * @returns {{ frontmatter: Record<string, { value: string; optional: boolean }>; body: string }} Parsed YAML and body content
  */
 const extractFrontmatter = (
   content: string
 ): {
-  frontmatter: Record<string, string>;
+  frontmatter: Record<string, { value: string; optional: boolean }>;
   body: string;
 } => {
   const match = content.match(FRONTMATTER_PATTERN);
@@ -151,8 +159,11 @@ const extractFrontmatter = (
 
 /**
  * Safely parses YAML content with error handling
+ * Supports both `name: "value"` and `name?: "value"` syntax
  */
-const parseYAMLSafely = (yamlContent: string): Record<string, string> => {
+const parseYAMLSafely = (
+  yamlContent: string
+): Record<string, { value: string; optional: boolean }> => {
   try {
     const parsed = YAML.parse(yamlContent);
 
@@ -160,12 +171,19 @@ const parseYAMLSafely = (yamlContent: string): Record<string, string> => {
       return {};
     }
 
-    // Convert all values to strings and filter out non-string keys
-    const stringifiedEntries = Object.entries(parsed)
+    // Convert all values to strings and detect optional fields (name?)
+    const processedEntries = Object.entries(parsed)
       .filter(([key]) => typeof key === 'string')
-      .map(([key, value]) => [key, String(value)]);
+      .map(([key, value]) => {
+        const isOptional = key.endsWith('?');
+        const cleanKey = isOptional ? key.slice(0, -1) : key;
+        return [
+          cleanKey,
+          { value: String(value), optional: isOptional },
+        ] as const;
+      });
 
-    return Object.fromEntries(stringifiedEntries);
+    return Object.fromEntries(processedEntries);
   } catch (error) {
     console.error('Failed to parse YAML frontmatter:', error);
     return {};
@@ -174,6 +192,7 @@ const parseYAMLSafely = (yamlContent: string): Record<string, string> => {
 
 /**
  * Substitutes variables in a parsed template AST to produce final output.
+ * For optional fields with empty string values, treats them as intentionally null and removes the placeholder.
  * @param {ParsedTemplate} parsed - Parsed template with AST
  * @param {Record<string, string>} variables - Map of variable names to values
  * @returns {string} Rendered output with variables substituted
@@ -190,6 +209,12 @@ const renderTemplate = (
 
       // Placeholder node - substitute or keep original format
       const substitutedValue = variables[astNode.name];
+
+      // For optional fields: empty string = intentionally null, render as empty
+      if (astNode.optional && substitutedValue === '') {
+        return '';
+      }
+
       return substitutedValue ?? `#{${astNode.name}}`;
     })
     .join('');
