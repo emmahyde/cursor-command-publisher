@@ -1,20 +1,20 @@
 {
   "$schema": "https://registry.modelcontextprotocol.io/schema/server.json",
-  "name": "io.github.emmahyde/mcp-command-server",
-  "title": "MCP Command Server",
-  "description": "Dynamic MCP server that loads command templates from markdown files with variable substitution. Create reusable commands in .md files with ${variable} syntax and have them automatically registered as MCP tools.",
+  "name": "io.github.emmahyde/cursor-command-publisher",
+  "title": "Cursor Command Publisher",
+  "description": "Dynamic MCP server that loads command templates from markdown files with variable substitution. Create reusable commands in .md files with ${variable} syntax and have them automatically registered as MCP tools. Designed for Cursor and Claude.",
   "version": "1.0.0",
-  "homepage": "https://github.com/emmahyde/mcp-command-server",
+  "homepage": "https://github.com/emmahyde/cursor-command-publisher",
   "repository": {
     "type": "git",
-    "url": "https://github.com/emmahyde/mcp-command-server"
+    "url": "https://github.com/emmahyde/cursor-command-publisher"
   },
   "author": "Emma Hyde",
   "license": "MIT",
   "packages": [
     {
       "registryType": "npm",
-      "identifier": "mcp-command-server",
+      "identifier": "cursor-command-publisher",
       "version": "1.0.0",
       "transport": "stdio"
     }
@@ -22,7 +22,9 @@
   "keywords": [
     "mcp",
     "model-context-protocol",
-    "command-server",
+    "cursor",
+    "claude",
+    "command-publisher",
     "dynamic-tools",
     "templates",
     "markdown"
