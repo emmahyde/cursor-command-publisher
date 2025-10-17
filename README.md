@@ -1,6 +1,12 @@
-# MCP Command Server
+# cursor-command-publisher
 
 A lightweight MCP (Model Context Protocol) server that dynamically loads and executes command templates from markdown files. Templates use simple `${variable, "description"}` syntax for parameterized commands.
+
+## One-Click Install
+
+[![Add to Cursor](https://img.shields.io/badge/Add_to-Cursor-blue?style=for-the-badge&logo=cursor)](cursor://anysphere.cursor-deeplink/mcp/install?name=cursor-command-publisher&config=eyJjb21tYW5kIjoibnB4IiwiYXJncyI6WyIteSIsImN1cnNvci1jb21tYW5kLXB1Ymxpc2hlciJdfQ%3D%3D)
+
+Click the button above to automatically install via `npx` - no manual configuration needed!
 
 ## Features
 
