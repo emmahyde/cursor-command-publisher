@@ -4,9 +4,8 @@ A lightweight MCP (Model Context Protocol) server that dynamically loads and exe
 
 ## One-Click Install
 
-[![Add to Cursor](https://img.shields.io/badge/Add_to-Cursor-blue?style=for-the-badge&logo=cursor)](cursor://anysphere.cursor-deeplink/mcp/install?name=cursor-command-publisher&config=eyJjb21tYW5kIjoibnB4IiwiYXJncyI6WyIteSIsImN1cnNvci1jb21tYW5kLXB1Ymxpc2hlciJdfQ%3D%3D)
-
-Click the button above to automatically install via `npx` - no manual configuration needed!
+[![Install in VS Code](https://img.shields.io/badge/Install_in-VS_Code-0098FF?style=flat-square&logo=visualstudiocode&logoColor=white)](https://vscode.dev/redirect/mcp/install?name=cursor-command-publisher&config=%7B%22command%22%3A%22npx%22%2C%22args%22%3A%5B%22-y%22%2C%22cursor-command-publisher%22%5D%2C%22env%22%3A%7B%7D%7D)
+[![Install in Cursor](https://img.shields.io/badge/Install_in-Cursor-000000?style=flat-square&logoColor=white)](https://cursor.com/en/install-mcp?name=cursor-command-publisher&config=eyJuYW1lIjoiY3Vyc29yLWNvbW1hbmQtcHVibGlzaGVyIiwiY29tbWFuZCI6Im5weCIsImFyZ3MiOlsiLXkiLCJjdXJzb3ItY29tbWFuZC1wdWJsaXNoZXIiXSwiZW52Ijp7fX0=)
 
 ## Features
 
@@ -80,16 +79,19 @@ ${variableName, "human-readable description"}
 ### Examples
 
 **Simple variable:**
+
 ```
 Run: ${command}
 ```
 
 **Variable with description:**
+
 ```
 Execute: ${command, "shell command to run"}
 ```
 
 **Multiple variables:**
+
 ```
 Connect to ${host, "hostname or IP"} on port ${port, "port number"}
 using username ${user, "login username"}
