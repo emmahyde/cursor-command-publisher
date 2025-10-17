@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **cursor-command-publisher** is an MCP (Model Context Protocol) server that dynamically loads and executes command templates from markdown files. It enables users to define reusable command templates with YAML frontmatter for variable definitions and `#{varName}` placeholders that can be executed through Claude in Cursor or other MCP clients.
 
-The server watches `.cursor/command-publisher/` directories for `.md` files, parses them as templates, and exposes them as both MCP tools and prompts with automatic schema generation and validation.
+The server watches `.cursor/published/` directories for `.md` files, parses them as templates, and exposes them as both MCP tools and prompts with automatic schema generation and validation.
 
 ## Build & Development Commands
 
@@ -60,7 +60,7 @@ npm run dev
 
 4. **Index (`src/index.ts`)** - Entry point
    - Initializes `CommandServer` with commands directories
-   - By default watches both `~/.cursor/command-publisher` (global) and `./.cursor/command-publisher` (project-local)
+   - By default watches both `~/.cursor/published` (global) and `./.cursor/published` (project-local)
    - Sets up STDIO transport for MCP communication
    - Handles graceful shutdown on SIGINT
 
@@ -127,10 +127,9 @@ Note: Variables inside code blocks are ignored:
   - If set, overrides the default behavior
   - Example: `COMMANDS_DIR="/path/to/dir1,/path/to/dir2"`
   - If not set, defaults to watching both:
-    - `~/.cursor/command-publisher` (global commands)
-    - `./.cursor/command-publisher` (project-local commands)
+    - `~/.cursor/published` (global commands)
+    - `./.cursor/published` (project-local commands)
 - This allows commands to be defined globally or per-project
-- **Why `.cursor/command-publisher/`**: Avoids conflicts with Cursor's automatic slash command discovery from `.cursor/commands/`
 
 ## Testing
 
@@ -177,8 +176,8 @@ Run individual test file: `npm test -- src/parser.test.ts`
   }
   ```
 - If `COMMANDS_DIR` is not specified, the server automatically watches:
-  - `~/.cursor/command-publisher` (global commands shared across all projects)
-  - `./.cursor/command-publisher` (project-specific commands in the current directory)
+  - `~/.cursor/published` (global commands shared across all projects)
+  - `./.cursor/published` (project-specific commands in the current directory)
 
 ## Dependencies
 

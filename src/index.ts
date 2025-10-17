@@ -1,56 +1,53 @@
 #!/usr/bin/env node
 
 /**
- * MCP Command Server
- * Dynamically loads and executes command templates from .md files
+ * @fileoverview MCP Command Server Entry Point
+ * Dynamically loads and executes command templates from markdown files.
  */
 
-import path from "path";
-import os from "os";
-import { fileURLToPath } from "url";
-import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { CommandServer } from "./server.js";
+import path from 'path';
+import os from 'os';
+import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import { createCommandServer } from './server.ts';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-async function main(): Promise<void> {
+/**
+ * Initializes and starts the MCP Command Server.
+ * @returns {Promise<void>}
+ * @throws {Error} Fatal errors logged to stderr with process exit
+ */
+const main = async (): Promise<void> => {
   try {
-    // Build list of directories to watch
     const commandsDirs: string[] = [];
 
-    // Add custom directories from COMMANDS_DIR (comma-separated)
+    // Check COMMANDS_DIR env var (comma-separated paths) or use defaults
     if (process.env.COMMANDS_DIR) {
-      commandsDirs.push(...process.env.COMMANDS_DIR.split(",").map((dir) => dir.trim()));
+      const dirs = process.env.COMMANDS_DIR.split(',')
+        .map(dir => dir.trim())
+        .filter(dir => dir.length > 0);
+      commandsDirs.push(...dirs);
     } else {
-      // Default behavior: check both global and project-local directories
-      const globalDir = path.join(os.homedir(), ".cursor/command-publisher");
-      const projectDir = path.join(process.cwd(), ".cursor/command-publisher");
-
+      const globalDir = path.join(os.homedir(), '.cursor/published');
+      const projectDir = path.join(process.cwd(), '.cursor/published');
       commandsDirs.push(globalDir, projectDir);
     }
 
-    console.log(`Starting MCP Command Server`);
-    console.log(`Commands directories:`);
-    commandsDirs.forEach((dir) => console.log(`  - ${dir}`));
+    console.error(`Watching directories:`);
+    commandsDirs.forEach(dir => console.error(`  - ${dir}`));
 
-    const server = new CommandServer(commandsDirs);
+    const server = createCommandServer(commandsDirs);
     const transport = new StdioServerTransport();
 
     await server.start(transport);
 
-    console.log("Server started successfully");
-
-    // Graceful shutdown
-    process.on("SIGINT", async () => {
-      console.log("Shutting down...");
+    // Graceful shutdown on SIGINT
+    process.on('SIGINT', async () => {
       await server.stop();
       process.exit(0);
     });
   } catch (error) {
-    console.error("Fatal error:", error);
+    console.error('Fatal error:', error);
     process.exit(1);
   }
-}
+};
 
 main();

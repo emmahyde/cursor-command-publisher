@@ -1,118 +1,116 @@
 /**
- * File watcher for dynamic command loading
- * Monitors directory for .md files and notifies of changes
+ * @fileoverview File watcher for dynamic command loading
+ * Monitors directories for .md files and notifies handlers of changes.
  */
 
-import fs from "fs/promises";
-import path from "path";
-import chokidar from "chokidar";
+import fs from 'fs/promises';
+import path from 'path';
+import chokidar from 'chokidar';
 
-export type FileChangeHandler = (
-  event: "add" | "change" | "unlink",
-  filePath: string,
-  content?: string
-) => void | Promise<void>;
+type WatcherEvent = 'add' | 'change' | 'unlink';
 
-export class CommandWatcher {
-  private watcher: chokidar.FSWatcher | null = null;
-  private commandsDirs: string[];
-  private handlers: Set<FileChangeHandler> = new Set();
+type FileChangeEvent = {
+  event: WatcherEvent;
+  filePath: string;
+  content?: string;
+};
 
-  constructor(commandsDirs: string | string[]) {
-    this.commandsDirs = Array.isArray(commandsDirs) ? commandsDirs : [commandsDirs];
-  }
+type FileChangeHandler = (_change: FileChangeEvent) => void | Promise<void>;
 
-  /**
-   * Register a handler to be called on file changes
-   */
-  onFileChange(handler: FileChangeHandler): void {
-    this.handlers.add(handler);
-  }
+/**
+ * Creates a file watcher that monitors directories for markdown file changes.
+ * @param {string | string[]} commandsDirs - Directory path(s) to watch
+ * @returns {Object} Watcher instance with onFileChange, start, and stop methods
+ */
+const createCommandWatcher = (commandsDirs: string[]) => {
+  let watcher: chokidar.FSWatcher | null = null;
+  const dirs = Array.isArray(commandsDirs) ? commandsDirs : [commandsDirs];
+  const handlers: Set<FileChangeHandler> = new Set();
 
   /**
-   * Start watching the commands directories
+   * Registers a handler to be called on file changes.
+   * @param {FileChangeHandler} handler - Callback for add/change/unlink events
    */
-  async start(): Promise<void> {
-    // Load initial files from all directories
-    for (const commandsDir of this.commandsDirs) {
-      // Ensure directory exists
-      await fs.mkdir(commandsDir, { recursive: true });
+  const onFileChange = (handler: FileChangeHandler): void => {
+    handlers.add(handler);
+  };
 
-      // Load initial files
-      try {
-        const files = await fs.readdir(commandsDir);
-        for (const file of files) {
-          if (file.endsWith(".md")) {
-            const filePath = path.join(commandsDir, file);
-            const content = await fs.readFile(filePath, "utf-8");
-            await this.notifyHandlers("add", filePath, content);
-          }
+  const notifyHandlers = async (change: FileChangeEvent): Promise<void> => {
+    const promises = Array.from(handlers).map(handler =>
+      Promise.resolve(handler(change)).catch(error => {
+        console.error(`Handler error for ${change.filePath}:`, error);
+      })
+    );
+    await Promise.all(promises);
+  };
+
+  const handleFileChange = async (
+    event: WatcherEvent,
+    filePath: string
+  ): Promise<void> => {
+    const content =
+      event === 'unlink'
+        ? undefined
+        : await fs.readFile(filePath, 'utf-8').catch(error => {
+            console.error(`Failed to read file ${filePath}:`, error);
+            return undefined;
+          });
+    await notifyHandlers({ event, filePath, content });
+  };
+
+  /**
+   * Starts watching directories for .md file changes.
+   * @returns {Promise<void>}
+   */
+  const start = async (): Promise<void> => {
+    // Ensure all directories exist
+    await Promise.all(dirs.map(dir => fs.mkdir(dir, { recursive: true })));
+
+    // Load existing .md files
+    await Promise.all(
+      dirs.map(async dir => {
+        try {
+          const files = await fs.readdir(dir);
+          const mdFiles = files.filter(f => f.endsWith('.md'));
+          const reads = mdFiles.map(async file => {
+            const filePath = path.join(dir, file);
+            const content = await fs.readFile(filePath, 'utf-8');
+            await notifyHandlers({ event: 'add', filePath, content });
+          });
+          await Promise.all(reads);
+        } catch (error) {
+          console.error(`Failed to read directory ${dir}:`, error);
         }
-      } catch (error) {
-        console.error(`Failed to read directory ${commandsDir}:`, error);
-      }
-    }
+      })
+    );
 
-    // Start watching all directories
-    const patterns = this.commandsDirs.map((dir) => path.join(dir, "*.md"));
-    this.watcher = chokidar.watch(patterns, {
+    // Watch for future changes
+    const patterns = dirs.map(dir => path.join(dir, '*.md'));
+    watcher = chokidar.watch(patterns, {
       persistent: true,
       ignoreInitial: true,
-      awaitWriteFinish: {
-        stabilityThreshold: 300,
-        pollInterval: 100,
-      },
+      awaitWriteFinish: { stabilityThreshold: 300, pollInterval: 100 },
     });
 
-    this.watcher
-      .on("add", (filePath) => this.handleFileChange("add", filePath))
-      .on("change", (filePath) => this.handleFileChange("change", filePath))
-      .on("unlink", (filePath) => this.handleFileChange("unlink", filePath));
-  }
+    watcher
+      .on('add', filePath => handleFileChange('add', filePath))
+      .on('change', filePath => handleFileChange('change', filePath))
+      .on('unlink', filePath => handleFileChange('unlink', filePath));
+  };
 
   /**
-   * Stop watching
+   * Stops the file watcher.
+   * @returns {Promise<void>}
    */
-  async stop(): Promise<void> {
-    if (this.watcher) {
-      await this.watcher.close();
-      this.watcher = null;
+  const stop = async (): Promise<void> => {
+    if (watcher) {
+      await watcher.close();
+      watcher = null;
     }
-  }
+  };
 
-  private async handleFileChange(
-    event: "add" | "change" | "unlink",
-    filePath: string
-  ): Promise<void> {
-    let content: string | undefined;
+  return { onFileChange, start, stop };
+};
 
-    if (event !== "unlink") {
-      try {
-        content = await fs.readFile(filePath, "utf-8");
-      } catch (error) {
-        console.error(`Failed to read file ${filePath}:`, error);
-        return;
-      }
-    }
-
-    await this.notifyHandlers(event, filePath, content);
-  }
-
-  private async notifyHandlers(
-    event: "add" | "change" | "unlink",
-    filePath: string,
-    content?: string
-  ): Promise<void> {
-    const promises: Promise<void>[] = [];
-
-    for (const handler of this.handlers) {
-      promises.push(
-        Promise.resolve(handler(event, filePath, content)).catch((error) => {
-          console.error(`Handler error for ${filePath}:`, error);
-        })
-      );
-    }
-
-    await Promise.all(promises);
-  }
-}
+export { createCommandWatcher };
+export type { FileChangeHandler, FileChangeEvent, WatcherEvent };

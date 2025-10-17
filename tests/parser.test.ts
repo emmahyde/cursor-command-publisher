@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseTemplate, renderTemplate } from './parser';
+import { parseTemplate, renderTemplate } from '../src/parser.ts';
 
 describe('Parser - YAML Frontmatter Extraction', () => {
   it('extracts simple placeholder with frontmatter description', () => {
@@ -13,11 +13,10 @@ run #{command}`;
     expect(result.vars[0]?.description).toBe('shell command to run');
   });
 
-  it('extracts placeholder without frontmatter description', () => {
+  it('treats placeholder without frontmatter as literal text', () => {
     const result = parseTemplate('run #{command}');
-    expect(result.vars).toHaveLength(1);
-    expect(result.vars[0]?.name).toBe('command');
-    expect(result.vars[0]?.description).toBeUndefined();
+    expect(result.vars).toHaveLength(0); // No variables without frontmatter
+    expect(result.ast).toContain('#{command}'); // Kept as literal
   });
 
   it('handles multiple placeholders with frontmatter', () => {
@@ -50,9 +49,10 @@ defined: "this is defined"
 ---
 #{defined} and #{undefined_var}`;
     const result = parseTemplate(template);
-    expect(result.vars).toHaveLength(2);
+    expect(result.vars).toHaveLength(1); // Only 'defined' is a variable
+    expect(result.vars[0]?.name).toBe('defined');
     expect(result.vars[0]?.description).toBe('this is defined');
-    expect(result.vars[1]?.description).toBeUndefined();
+    expect(result.ast).toContain('#{undefined_var}'); // Kept as literal
   });
 
   it('handles empty frontmatter', () => {
@@ -60,15 +60,15 @@ defined: "this is defined"
 ---
 text #{variable}`;
     const result = parseTemplate(template);
-    expect(result.vars).toHaveLength(1);
-    expect(result.vars[0]?.description).toBeUndefined();
+    expect(result.vars).toHaveLength(0); // No variables defined
+    expect(result.ast).toContain('#{variable}'); // Kept as literal
   });
 
   it('handles template without frontmatter', () => {
     const template = 'no frontmatter #{var}';
     const result = parseTemplate(template);
-    expect(result.vars).toHaveLength(1);
-    expect(result.vars[0]?.name).toBe('var');
+    expect(result.vars).toHaveLength(0); // No frontmatter = no variables
+    expect(result.ast).toContain('#{var}'); // Kept as literal
   });
 
   it('preserves literal text before, after, and between placeholders', () => {
@@ -130,7 +130,12 @@ cmd: "shell command to execute"
   });
 
   it('uses variable name as fallback description', () => {
-    const result = parseTemplate('#{cmd}');
+    // Empty string value means no description, so fallback is used
+    const template = `---
+cmd: ""
+---
+#{cmd}`;
+    const result = parseTemplate(template);
     const props = result.inputSchema.properties as any;
     expect(props.cmd.description).toBe('Variable: cmd');
   });
@@ -221,19 +226,28 @@ myvar: "test variable"
   });
 
   it('handles empty string values', () => {
-    const parsed = parseTemplate('before #{myvar} after');
+    const parsed = parseTemplate(`---
+myvar: "test variable"
+---
+before #{myvar} after`);
     const result = renderTemplate(parsed, { myvar: '' });
     expect(result).toBe('before  after');
   });
 
   it('handles special characters in values', () => {
-    const parsed = parseTemplate('echo #{text}');
+    const parsed = parseTemplate(`---
+text: "text content"
+---
+echo #{text}`);
     const result = renderTemplate(parsed, { text: 'hello "world" & friends' });
     expect(result).toBe('echo hello "world" & friends');
   });
 
   it('handles newlines in substituted values', () => {
-    const parsed = parseTemplate('text: #{content}');
+    const parsed = parseTemplate(`---
+content: "content text"
+---
+text: #{content}`);
     const result = renderTemplate(parsed, { content: 'line1\nline2' });
     expect(result).toBe('text: line1\nline2');
   });
@@ -361,8 +375,8 @@ Output format: #{format}`;
   });
 });
 
-describe('Parser - Code Block Awareness', () => {
-  it('ignores placeholders inside fenced code blocks', () => {
+describe('Parser - Frontmatter-Only Variables', () => {
+  it('treats undefined placeholders as literal text in code blocks', () => {
     const template = `---
 name: "person's name"
 ---
@@ -370,7 +384,7 @@ Hello #{name}!
 
 Here's an example:
 \`\`\`
-#{variable} <- this should be ignored
+#{variable} <- this is literal because not in frontmatter
 \`\`\`
 
 Goodbye #{name}!`;
@@ -378,57 +392,36 @@ Goodbye #{name}!`;
     const result = parseTemplate(template);
     expect(result.vars).toHaveLength(1);
     expect(result.vars[0]?.name).toBe('name');
+    expect(result.ast.join('')).toContain('#{variable}');
   });
 
-  it('handles multiple code blocks', () => {
+  it('distinguishes defined vs undefined placeholders', () => {
     const template = `---
 realVar: "actual variable"
 ---
-Use #{realVar} here.
-
-\`\`\`
-#{fakeVar1}
-\`\`\`
-
-And #{realVar} again.
-
-\`\`\`
-#{fakeVar2}
-\`\`\``;
+Use #{realVar} here and #{notDefined} stays literal.`;
 
     const result = parseTemplate(template);
     expect(result.vars).toHaveLength(1);
     expect(result.vars[0]?.name).toBe('realVar');
+
+    const rendered = renderTemplate(result, { realVar: 'VALUE' });
+    expect(rendered).toContain('Use VALUE here');
+    expect(rendered).toContain('#{notDefined} stays literal');
   });
 
-  it('handles unclosed code blocks', () => {
-    const template = `---
-before: "variable before code"
----
-#{before} this works
-
-\`\`\`
-#{inside} <- everything after opening is treated as code`;
-
-    const result = parseTemplate(template);
-    expect(result.vars).toHaveLength(1);
-    expect(result.vars[0]?.name).toBe('before');
-  });
-
-  it('renders code blocks with placeholders as literal text', () => {
+  it('allows placeholder syntax in examples without frontmatter collision', () => {
     const template = `---
 name: "person's name"
 ---
 Hello #{name}!
 
-\`\`\`
-#{example}
-\`\`\``;
+Example usage: #{example}`;
 
     const parsed = parseTemplate(template);
     const rendered = renderTemplate(parsed, { name: 'Alice' });
 
     expect(rendered).toContain('Hello Alice!');
-    expect(rendered).toContain('#{example}'); // Should remain literal
+    expect(rendered).toContain('#{example}'); // Literal because not in frontmatter
   });
 });

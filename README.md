@@ -1,4 +1,4 @@
-# cursor-command-publisher
+# command-publisher
 
 A lightweight MCP (Model Context Protocol) server that dynamically loads and executes command templates from markdown files. Templates use YAML frontmatter for variable definitions and `#{variable}` placeholders for parameterized commands.
 
@@ -34,13 +34,13 @@ npm run build
 
 ### 3. Create Command Templates
 
-Create a `.cursor/command-publisher/` directory and add markdown files with templates:
+Create a `.cursor/published/` directory and add markdown files with templates:
 
 ```bash
-mkdir -p .cursor/command-publisher
+mkdir -p .cursor/published
 ```
 
-**Example: `.cursor/command-publisher/summarize.md`**
+**Example: `.cursor/published/summarize.md`**
 
 ```markdown
 ---
@@ -53,7 +53,7 @@ Summarize the following text in #{format} format:
 #{text}
 ```
 
-**Example: `.cursor/command-publisher/translate.md`**
+**Example: `.cursor/published/translate.md`**
 
 ```markdown
 ---
@@ -69,7 +69,7 @@ Translate the following text to #{language} language:
 ### 4. Run the Server
 
 ```bash
-# Default (looks for .cursor/command-publisher in current directory)
+# Default (looks for .cursor/published in current directory)
 node build/index.js
 
 # Or specify a custom directory
@@ -161,12 +161,10 @@ In this example, only `name` is extracted as a variable. The `#{variable_name}` 
 
 ## How It Works
 
-1. **Startup**: Server scans `.cursor/command-publisher/` for `.md` files and parses them
+1. **Startup**: Server scans `.cursor/published/` for `.md` files and parses them
 2. **Registration**: Each template is registered as both an MCP tool and prompt with variables as parameters
 3. **Watching**: File changes are detected via `chokidar` and tools/prompts are updated in real-time
 4. **Execution**: When a tool/prompt is called, variables are substituted and the result is returned
-
-**Why `.cursor/command-publisher/`?** This directory avoids conflicts with Cursor's automatic slash command discovery from `.cursor/commands/`, preventing duplicate command registration.
 
 ## MCP Configuration
 
