@@ -1,11 +1,68 @@
-# command-publisher
+# Command Publisher
+
+[![npm version](https://badge.fury.io/js/cursor-command-publisher.svg?icon=si%3Anpm)](https://badge.fury.io/js/cursor-command-publisher)
+
+[![Add to Cursor](https://img.shields.io/badge/Add_to-Cursor-000000?style=flat-square&logoColor=white)](https://cursor.com/en/install-mcp?name=cmdpublisher&config=eyJuYW1lIjoiY21kcHVibGlzaGVyIiwiY29tbWFuZCI6Im5weCIsImFyZ3MiOlsiLXkiLCJjdXJzb3ItY29tbWFuZC1wdWJsaXNoZXIiXSwiZW52Ijp7fX0=)
 
 A lightweight MCP (Model Context Protocol) server that dynamically loads and executes command templates from markdown files. Templates use YAML frontmatter for variable definitions and `#{variable}` placeholders for parameterized commands.
 
-## One-Click Install
+Searches `~/.cursor/published` for `.md` files and parses front matter for interactive variable fillout.
 
-[![Install in VS Code](https://img.shields.io/badge/Install_in-VS_Code-0098FF?style=flat-square&logo=visualstudiocode&logoColor=white)](https://vscode.dev/redirect/mcp/install?name=cursor-command-publisher&config=%7B%22command%22%3A%22npx%22%2C%22args%22%3A%5B%22-y%22%2C%22cursor-command-publisher%22%5D%2C%22env%22%3A%7B%7D%7D)
-[![Install in Cursor](https://img.shields.io/badge/Install_in-Cursor-000000?style=flat-square&logoColor=white)](https://cursor.com/en/install-mcp?name=cursor-command-publisher&config=eyJuYW1lIjoiY3Vyc29yLWNvbW1hbmQtcHVibGlzaGVyIiwiY29tbWFuZCI6Im5weCIsImFyZ3MiOlsiLXkiLCJjdXJzb3ItY29tbWFuZC1wdWJsaXNoZXIiXSwiZW52Ijp7fX0=)
+https://github.com/user-attachments/assets/50efd387-6a83-4972-8028-7a777a3d1808
+
+**Closer view of interactive modal:**
+
+<img width="577" height="83" alt="Screenshot 2025-10-17 at 10 41 01" src="https://github.com/user-attachments/assets/9fa4c775-f25f-4b0b-a340-7b7aa3636e4b" />
+
+## Getting Started
+
+### Quick Install
+
+Click the `Add to Cursor` button above. Then, create `~/.cursor/published`, or specify a different directory
+
+### Manual Installation
+
+#### MCP Configuration
+
+```json
+{
+  "mcpServers": {
+    "cmdpublisher": {
+      "command": "npx",
+      "args": ["-y", "cursor-command-publisher"],
+    }
+  }
+}
+```
+
+Or specify a custom directory:
+
+```json
+{
+  "mcpServers": {
+    "cmdpublisher": {
+      "command": "node",
+      "args": ["/path/to/cursor-command-publisher/build/index.js"],
+      "env": {
+        "COMMANDS_DIR": ["/custom/path"]
+      }
+    }
+  }
+}
+```
+
+Note that `COMMANDS_DIR` must be an Array.
+
+#### Manual Installation
+
+Go to `Cursor Settings` -> `MCP` -> `Add new MCP Server`. Name to your liking, use `command` type with the command from the standard config above. You can also verify config or add command like arguments via clicking `Edit`.
+</details>
+
+### Configuration Details
+
+- **Server Name:** `cmdpublisher`
+- **Type:** NPX Package
+- **Package:** `emmahyde/cursor-command-publisher`
 
 ## Features
 
@@ -13,26 +70,14 @@ A lightweight MCP (Model Context Protocol) server that dynamically loads and exe
 - **Live Reloading**: Changes to template files are detected instantly
 - **YAML Frontmatter**: Clean variable definitions with descriptions in one place
 - **Simple Template Syntax**: Use `#{varName}` for placeholders
-- **Code Block Aware**: Automatically ignores placeholders inside fenced code blocks
+- **Optional Params**: Use `variable?: "optional param"` syntax to allow null values.
 - **Dual Registration**: Each template is exposed as both a tool and a prompt
 - **Minimal Dependencies**: Only uses `@modelcontextprotocol/sdk`, `chokidar`, and `yaml`
 - **Local Only**: No network ports or API keys required
 
-## Quick Start
+## Usage
 
-### 1. Install Dependencies
-
-```bash
-npm install
-```
-
-### 2. Build
-
-```bash
-npm run build
-```
-
-### 3. Create Command Templates
+### Create Command Templates
 
 Create a `.cursor/published/` directory and add markdown files with templates:
 
@@ -66,16 +111,6 @@ Translate the following text to #{language} language:
 #{text}
 ```
 
-### 4. Run the Server
-
-```bash
-# Default (looks for .cursor/published in current directory)
-node build/index.js
-
-# Or specify a custom directory
-COMMANDS_DIR=/path/to/commands node build/index.js
-```
-
 ## Template Syntax
 
 Templates use YAML frontmatter for variable definitions and `#{variableName}` for placeholders:
@@ -99,7 +134,7 @@ Template content with #{variableName} and #{anotherVar} placeholders.
 
 ### Examples
 
-**Simple variables:**
+**Simple variables**
 
 ```markdown
 ---
@@ -109,7 +144,7 @@ command: "shell command to run"
 Run: #{command}
 ```
 
-**Multiple variables:**
+**Multiple variables**
 
 ```markdown
 ---
@@ -121,11 +156,25 @@ user: "login username"
 Connect to #{host} on port #{port} using username #{user}
 ```
 
-**Complex template with multiline YAML:**
+
+**Optional variables:**
+Can be null.
 
 ```markdown
 ---
-code: "the code to explain"
+host: "hostname or IP"
+port: "port number"
+user?: "login username"
+---
+
+Connect to #{host} on port #{port} using username #{user}
+```
+
+**Drop code into your Prompt**
+
+```markdown
+---
+code: "the path/to/code.file:X-Y range"
 audience: "who needs the explanation"
 ---
 
@@ -133,31 +182,11 @@ audience: "who needs the explanation"
 
 Explain the following code for #{audience}:
 
-```
+\```
 #{code}
-```
-
+\```
 Focus on what it does and why.
 ```
-
-**Code block awareness:**
-
-```markdown
----
-name: "person's name"
----
-
-Hello #{name}!
-
-Here's the syntax we use:
-\`\`\`
-#{variable_name}  <- This is NOT extracted as a variable
-\`\`\`
-
-Goodbye #{name}!
-```
-
-In this example, only `name` is extracted as a variable. The `#{variable_name}` inside the code block is treated as literal text.
 
 ## How It Works
 
@@ -165,38 +194,6 @@ In this example, only `name` is extracted as a variable. The `#{variable_name}` 
 2. **Registration**: Each template is registered as both an MCP tool and prompt with variables as parameters
 3. **Watching**: File changes are detected via `chokidar` and tools/prompts are updated in real-time
 4. **Execution**: When a tool/prompt is called, variables are substituted and the result is returned
-
-## MCP Configuration
-
-To use this server with Claude in Cursor, add to your `.cursor/config.json`:
-
-```json
-{
-  "mcpServers": {
-    "command-publisher": {
-      "command": "npx",
-      "args": ["-y", "cursor-command-publisher"],
-      "env": {}
-    }
-  }
-}
-```
-
-Or specify a custom directory:
-
-```json
-{
-  "mcpServers": {
-    "command-publisher": {
-      "command": "node",
-      "args": ["/path/to/cursor-command-publisher/build/index.js"],
-      "env": {
-        "COMMANDS_DIR": "/custom/path"
-      }
-    }
-  }
-}
-```
 
 ## Architecture
 
@@ -213,26 +210,6 @@ src/
 - **Parser**: YAML frontmatter parser with `#{}` placeholder extraction, automatically skips fenced code blocks
 - **Watcher**: Monitors directory and notifies of changes
 - **Server**: Registers tools and prompts dynamically, executes template rendering
-
-## Development
-
-### Watch Mode
-
-```bash
-npm run watch
-```
-
-### Test a Command Manually
-
-```bash
-# Build first
-npm run build
-
-# Run server
-node build/index.js
-
-# In another terminal, test with MCP client
-```
 
 ## Environment Variables
 
@@ -266,13 +243,14 @@ node build/index.js
 - Variable names are case-sensitive
 - No template inheritance or includes (by design, keep it lean)
 
-## Future Enhancements (Not Included)
+## Future Enhancements
 
 - Template validation schemas
 - Nested templates or includes
 - Multiple output formats (JSON, XML, etc.)
 - Pre/post-processing hooks
 - Template caching and optimization
+- Conditional blocks based on the value of the param
 
 ## License
 
