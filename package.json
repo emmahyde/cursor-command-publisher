@@ -1,6 +1,6 @@
 {
   "name": "cursor-command-publisher",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Dynamic MCP server that loads command templates from markdown files with variable substitution. Designed for Cursor and Claude.",
   "type": "module",
   "bin": {

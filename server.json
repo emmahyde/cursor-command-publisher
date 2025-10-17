@@ -3,7 +3,7 @@
   "name": "io.github.emmahyde/cursor-command-publisher",
   "title": "Cursor Command Publisher",
   "description": "Dynamic MCP server that loads command templates from markdown files with variable substitution. Create reusable commands in .md files with ${variable} syntax and have them automatically registered as MCP tools. Designed for Cursor and Claude.",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "homepage": "https://github.com/emmahyde/cursor-command-publisher",
   "repository": {
     "type": "git",
@@ -15,7 +15,7 @@
     {
       "registryType": "npm",
       "identifier": "cursor-command-publisher",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "transport": "stdio"
     }
   ],
