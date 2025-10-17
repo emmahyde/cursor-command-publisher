@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseTemplate, renderTemplate, parsePlaceholder, Placeholder } from './parser';
+import { parseTemplate, renderTemplate } from './parser';
 
 describe('Parser - Placeholder Extraction', () => {
   it('extracts simple placeholder without description', () => {

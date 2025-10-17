@@ -1,12 +1,32 @@
 {
   "name": "mcp-command-server",
   "version": "1.0.0",
-  "description": "MCP server with dynamic command loading from templates",
+  "description": "Dynamic MCP server that loads command templates from markdown files with variable substitution",
   "type": "module",
   "bin": {
     "mcp-command-server": "./build/index.js"
   },
-  "files": ["build"],
+  "files": ["build", "README.md", "LICENSE"],
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "command-server",
+    "dynamic-tools",
+    "templates"
+  ],
+  "author": "Emma Hyde",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/emmahyde/mcp-command-server.git"
+  },
+  "bugs": {
+    "url": "https://github.com/emmahyde/mcp-command-server/issues"
+  },
+  "homepage": "https://github.com/emmahyde/mcp-command-server#readme",
+  "engines": {
+    "node": ">=20.0.0"
+  },
   "scripts": {
     "build": "tsc && chmod +x build/index.js",
     "watch": "tsc --watch",
