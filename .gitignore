@@ -3,3 +3,9 @@ build/
 *.log
 .env
 .cursor/commands/
+
+# TypeScript compilation artifacts
+*.d.ts
+*.d.ts.map
+*.js.map
+tests/**/*.js
