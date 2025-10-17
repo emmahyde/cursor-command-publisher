@@ -5,9 +5,14 @@
  */
 
 import YAML from 'yaml';
-import { ParsedTemplate, Placeholder } from './types.ts';
+import type {
+  ParsedTemplate,
+  Placeholder,
+  ASTNode,
+  ConditionalBlock,
+} from './types.js';
 
-const PLACEHOLDER_PATTERN = /#\{([^}?]+)(\?)?}/g;
+const PLACEHOLDER_PATTERN = /#\{(\?|\/)?([^}?]*?)(\?)?}/g;
 const FRONTMATTER_PATTERN = /^---\s*\n([\s\S]*?)\n---\s*\n([\s\S]*)$/;
 
 /**
@@ -30,81 +35,162 @@ const parseTemplate = (content: string): ParsedTemplate => {
 };
 
 /**
- * Builds an AST from the template body, extracting placeholders defined in frontmatter
+ * Builds an AST from the template body, extracting placeholders and blocks defined in frontmatter
  */
 const buildASTFromBody = (
   body: string,
   frontmatter: Record<string, { value: string; optional: boolean }>
-): { ast: Array<string | Placeholder>; variables: Placeholder[] } => {
-  const ast: Array<string | Placeholder> = [];
-  const variables: Placeholder[] = [];
+): { ast: ASTNode[]; variables: Placeholder[] } => {
+  type BlockContext = { variable?: string; content: ASTNode[] };
+
   const seenVariables = new Map<string, Placeholder>();
+  const blockStack: BlockContext[] = [{ content: [] }];
+  let lastIndex = 0;
 
   const placeholderMatches = Array.from(body.matchAll(PLACEHOLDER_PATTERN));
-  let lastProcessedIndex = 0;
 
+  // Process each match with handlers
   for (const match of placeholderMatches) {
     const matchStartIndex = match.index ?? 0;
     const matchEndIndex = matchStartIndex + match[0].length;
+    const currentContext = blockStack[blockStack.length - 1];
 
-    // Add any text before this match
-    if (matchStartIndex > lastProcessedIndex) {
-      ast.push(body.slice(lastProcessedIndex, matchStartIndex));
+    // Add preceding text
+    const precedingText = body.slice(lastIndex, matchStartIndex);
+    if (precedingText) {
+      currentContext.content.push(precedingText);
     }
 
-    // Process placeholder - only treat as variable if defined in frontmatter
-    const placeholderName = (match[1] || '').trim();
-    const isOptional = !!match[2]; // Captures the ? if present
+    const [fullMatch, prefix = '', name = '', suffix = ''] = match;
+    const trimmedName = name.trim();
 
-    const frontmatterEntry = frontmatter[placeholderName];
-    if (placeholderName && frontmatterEntry !== undefined) {
-      const placeholder = createPlaceholder(
-        placeholderName,
-        matchStartIndex,
-        matchEndIndex,
-        frontmatterEntry.value,
-        isOptional || frontmatterEntry.optional
-      );
-
-      ast.push(placeholder);
-
-      // Track unique variables
-      if (!seenVariables.has(placeholderName)) {
-        seenVariables.set(placeholderName, placeholder);
-        variables.push(placeholder);
+    // Handler for block start: #{?variable}
+    const handleBlockStart = () => {
+      if (!trimmedName) {
+        currentContext.content.push(fullMatch);
+        return;
       }
+
+      if (!frontmatter[trimmedName]) {
+        frontmatter[trimmedName] = {
+          value: `Conditional block for ${trimmedName}`,
+          optional: true,
+        };
+      }
+
+      blockStack.push({ variable: trimmedName, content: [] });
+    };
+
+    // Handler for block end: #{/variable} or #{/}
+    const handleBlockEnd = () => {
+      if (blockStack.length <= 1) {
+        currentContext.content.push(fullMatch);
+        return;
+      }
+
+      const closedBlock = blockStack[blockStack.length - 1];
+      const parentContext = blockStack[blockStack.length - 2];
+
+      if (
+        !closedBlock.variable ||
+        (trimmedName && trimmedName !== closedBlock.variable)
+      ) {
+        closedBlock.content.push(fullMatch);
+        return;
+      }
+
+      blockStack.pop();
+
+      const block: ConditionalBlock = {
+        type: 'block',
+        variable: closedBlock.variable,
+        content: closedBlock.content,
+      };
+      parentContext.content.push(block);
+
+      // Track variable
+      if (!seenVariables.has(closedBlock.variable)) {
+        const placeholder: Placeholder = {
+          type: 'placeholder',
+          name: closedBlock.variable,
+          description: frontmatter[closedBlock.variable]?.value,
+          optional: true,
+        };
+        seenVariables.set(closedBlock.variable, placeholder);
+      }
+    };
+
+    // Handler for regular placeholder: #{variable} or #{variable?}
+    const handlePlaceholder = () => {
+      const isOptional = !!suffix;
+      const frontmatterEntry = frontmatter[trimmedName];
+
+      if (!trimmedName || !frontmatterEntry) {
+        currentContext.content.push(fullMatch);
+        return;
+      }
+
+      const placeholder: Placeholder = {
+        type: 'placeholder',
+        name: trimmedName,
+        description: frontmatterEntry.value,
+        start: matchStartIndex,
+        end: matchEndIndex,
+        optional: isOptional || frontmatterEntry.optional,
+      };
+
+      currentContext.content.push(placeholder);
+
+      if (!seenVariables.has(trimmedName)) {
+        seenVariables.set(trimmedName, placeholder);
+      }
+    };
+
+    // Route to appropriate handler
+    if (prefix === '?') {
+      handleBlockStart();
+    } else if (prefix === '/') {
+      handleBlockEnd();
     } else {
-      // Not in frontmatter or invalid - keep as literal text
-      ast.push(match[0]);
+      handlePlaceholder();
     }
 
-    lastProcessedIndex = matchEndIndex;
+    lastIndex = matchEndIndex;
   }
 
-  // Add any remaining text after the last match
-  if (lastProcessedIndex < body.length) {
-    ast.push(body.slice(lastProcessedIndex));
+  // Add remaining text
+  const remainingText = body.slice(lastIndex);
+  if (remainingText) {
+    blockStack[blockStack.length - 1].content.push(remainingText);
   }
 
-  return { ast, variables };
+  // Handle unclosed blocks
+  const unclosedCount = blockStack.length - 1;
+  if (unclosedCount > 0) {
+    console.warn(
+      `Warning: ${unclosedCount} unclosed conditional block(s) detected`
+    );
+  }
+
+  const ast =
+    unclosedCount > 0
+      ? [
+          ...blockStack
+            .slice(1)
+            .reverse()
+            .flatMap(block => [
+              ...(block.variable ? [`#{?${block.variable}}`] : []),
+              ...block.content,
+            ]),
+          ...blockStack[0].content,
+        ]
+      : blockStack[0].content;
+
+  return {
+    ast,
+    variables: Array.from(seenVariables.values()),
+  };
 };
-
-/**
- * Creates a placeholder object with metadata
- */
-const createPlaceholder = (
-  name: string,
-  startIndex: number,
-  endIndex: number,
-  description?: string,
-  optional: boolean = false
-): Placeholder => ({
-  name,
-  description,
-  start: startIndex,
-  end: endIndex,
-  optional,
-});
 
 /**
  * Builds a JSON Schema from extracted variables
@@ -193,6 +279,7 @@ const parseYAMLSafely = (
 /**
  * Substitutes variables in a parsed template AST to produce final output.
  * For optional fields with empty string values, treats them as intentionally null and removes the placeholder.
+ * Conditional blocks are only rendered if their controlling variable has a non-empty value.
  * @param {ParsedTemplate} parsed - Parsed template with AST
  * @param {Record<string, string>} variables - Map of variable names to values
  * @returns {string} Rendered output with variables substituted
@@ -201,23 +288,35 @@ const renderTemplate = (
   parsed: ParsedTemplate,
   variables: Record<string, string>
 ): string => {
-  return parsed.ast
-    .map(astNode => {
-      if (typeof astNode === 'string') {
-        return astNode;
-      }
+  const renderNode = (node: ASTNode): string => {
+    // Text node
+    if (typeof node === 'string') {
+      return node;
+    }
 
-      // Placeholder node - substitute or keep original format
-      const substitutedValue = variables[astNode.name];
-
-      // For optional fields: empty string = intentionally null, render as empty
-      if (astNode.optional && substitutedValue === '') {
+    // Conditional block node
+    if (node.type === 'block') {
+      const controlValue = variables[node.variable];
+      // Only render block if control variable has a non-empty value
+      if (!controlValue || controlValue.trim() === '') {
         return '';
       }
+      // Recursively render block content
+      return node.content.map(renderNode).join('');
+    }
 
-      return substitutedValue ?? `#{${astNode.name}}`;
-    })
-    .join('');
+    // Placeholder node
+    const substitutedValue = variables[node.name];
+
+    // For optional fields: empty string = intentionally null, render as empty
+    if (node.optional && substitutedValue === '') {
+      return '';
+    }
+
+    return substitutedValue ?? `#{${node.name}}`;
+  };
+
+  return parsed.ast.map(renderNode).join('');
 };
 
 export { parseTemplate, renderTemplate };

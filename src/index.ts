@@ -8,7 +8,7 @@
 import path from 'path';
 import os from 'os';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import { createCommandServer } from './server.ts';
+import { createCommandServer } from './server.js';
 
 /**
  * Initializes and starts the MCP Command Server.

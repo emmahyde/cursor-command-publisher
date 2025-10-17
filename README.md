@@ -70,7 +70,8 @@ Go to `Cursor Settings` -> `MCP` -> `Add new MCP Server`. Name to your liking, u
 - **Live Reloading**: Changes to template files are detected instantly
 - **YAML Frontmatter**: Clean variable definitions with descriptions in one place
 - **Simple Template Syntax**: Use `#{varName}` for placeholders
-- **Optional Params**: Use `variable?: "optional param"` syntax to allow null values.
+- **Optional Parameters**: Use `variable?: "description"` in frontmatter and `#{variable?}` in templates for conditional content
+- **Conditional Blocks**: Use `#{?variable}...#{/variable}` to conditionally include entire sections based on variable values
 - **Dual Registration**: Each template is exposed as both a tool and a prompt
 - **Minimal Dependencies**: Only uses `@modelcontextprotocol/sdk`, `chokidar`, and `yaml`
 - **Local Only**: No network ports or API keys required
@@ -150,7 +151,8 @@ Connect to #{host} on port #{port} using username #{user}
 
 
 **Optional variables:**
-Can be null.
+
+Use the `?` suffix in both YAML frontmatter and template placeholders to make parameters optional. Optional parameters can be left empty or omitted, and will be replaced with an empty string when not provided.
 
 ```markdown
 ---
@@ -159,8 +161,78 @@ port: "port number"
 user?: "login username"
 ---
 
-Connect to #{host} on port #{port} using username #{user}
+Connect to #{host} on port #{port}#{user? using username }#{user?}
 ```
+
+When `user` is provided: `Connect to 192.168.1.1 on port 22 using username admin`
+When `user` is empty: `Connect to 192.168.1.1 on port 22`
+
+**Advanced optional usage with conditional text:**
+
+```markdown
+---
+topic: "main topic"
+author?: "author name"
+date?: "publication date"
+---
+
+# #{topic}
+
+Written by #{author?}#{date? on }#{date?}
+```
+
+When all fields provided: `# Testing\n\nWritten by Emma Hyde on 2025-10-17`
+When optional fields empty: `# Testing\n\nWritten by`
+
+**Conditional blocks:**
+
+Use `#{?variable}` to start a conditional block and `#{/variable}` or `#{/}` to end it. The entire block is only rendered if the variable has a non-empty value.
+
+```markdown
+---
+title: "document title"
+author?: "author name"
+version?: "version number"
+---
+# #{title}
+
+#{?author}
+## Author Information
+Written by: #{author}
+#{/author}
+
+#{?version}
+## Version
+Version: #{version}
+#{/}
+
+## Content
+Main documentation here.
+```
+
+When all fields provided:
+```
+# API Documentation
+
+## Author Information
+Written by: Emma Hyde
+
+## Version
+Version: 1.0.0
+
+## Content
+Main documentation here.
+```
+
+When optional fields empty:
+```
+# API Documentation
+
+## Content
+Main documentation here.
+```
+
+This is much cleaner than using multiple optional placeholders with conditional text!
 
 **Drop code into your Prompt**
 

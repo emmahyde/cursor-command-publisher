@@ -1,13 +1,13 @@
 {
   "name": "cursor-command-publisher",
-  "version": "1.0.1",
+  "version": "1.0.4",
   "description": "Dynamic MCP server that loads command templates from markdown files with variable substitution. Designed for Cursor and Claude.",
   "type": "module",
   "bin": {
     "cursor-command-publisher": "./bin/cli.js"
   },
   "files": [
-    "src",
+    "build",
     "bin",
     "README.md",
     "LICENSE"
@@ -39,7 +39,7 @@
     "watch": "tsc --watch",
     "dev": "tsx src/index.ts",
     "start": "tsx src/index.ts",
-    "test": "vitest",
+    "test": "vitest --run",
     "test:ui": "vitest --ui",
     "test:coverage": "vitest --coverage",
     "lint": "eslint src/**/*.ts tests/**/*.ts",

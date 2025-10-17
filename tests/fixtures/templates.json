@@ -230,6 +230,53 @@
       "template": "---\ntopic: \"topic of discussion\"\ncontext?: \"optional context\"\n---\nDiscuss #{topic}#{context? with context: }#{context?}",
       "vars": { "topic": "AI", "context": "testing" }
     }
+  },
+  "conditionalBlocks": {
+    "simple": {
+      "template": "---\nauthor?: \"author name\"\n---\n# Documentation\n\n#{?author}\nAuthor: #{author}\n#{/author}",
+      "varsWithAuthor": { "author": "Emma Hyde" },
+      "varsWithoutAuthor": { "author": "" }
+    },
+    "multiple": {
+      "template": "---\nauthor?: \"author name\"\ndate?: \"publication date\"\n---\n# Documentation\n#{?author}\nAuthor: #{author}\n#{/author}\n#{?date}\nDate: #{date}\n#{/date}",
+      "varsBoth": { "author": "Emma", "date": "2025-10-17" },
+      "varsOnlyAuthor": { "author": "Emma", "date": "" },
+      "varsNeither": { "author": "", "date": "" }
+    },
+    "nested": {
+      "template": "---\nsection?: \"section name\"\ntopic: \"main topic\"\n---\nMain: #{topic}\n#{?section}\nSection: #{section} for #{topic}\n#{/section}",
+      "vars": { "section": "Advanced", "topic": "Testing" }
+    },
+    "explicitEnd": {
+      "template": "---\nauthor?: \"author name\"\n---\n#{?author}\nAuthor: #{author}\n#{/author}",
+      "vars": { "author": "Emma" }
+    },
+    "shortEnd": {
+      "template": "---\nauthor?: \"author name\"\n---\n#{?author}\nAuthor: #{author}\n#{/}",
+      "vars": { "author": "Emma" }
+    },
+    "mismatched": {
+      "template": "---\nauthor?: \"author name\"\n---\n#{?author}\nContent\n#{/wrongname}",
+      "vars": { "author": "Emma" }
+    },
+    "unclosed": {
+      "template": "---\nauthor?: \"author name\"\n---\n#{?author}\nContent without closing tag",
+      "vars": { "author": "Emma" }
+    },
+    "implicitVariable": {
+      "template": "---\nname: \"person name\"\n---\n#{?undefined}\nThis should work\n#{/undefined}\nHello #{name}",
+      "vars": { "name": "Emma" }
+    },
+    "withWhitespace": {
+      "template": "---\nnote?: \"optional note\"\n---\nMain content\n#{?note}\n\nNote: #{note}\n\n#{/note}\nEnd",
+      "varsWithNote": { "note": "Important!" },
+      "varsWithoutNote": { "note": "" }
+    },
+    "documentation": {
+      "template": "---\ntitle: \"document title\"\nauthor?: \"author name\"\nversion?: \"version number\"\n---\n# #{title}\n\n#{?author}\n## Author Information\nWritten by: #{author}\n#{/author}\n\n#{?version}\n## Version\nVersion: #{version}\n#{/version}\n\n## Content\nMain documentation here.",
+      "varsFull": { "title": "API Documentation", "author": "Emma Hyde", "version": "1.0.0" },
+      "varsMinimal": { "title": "API Documentation", "author": "", "version": "" }
+    }
   }
 }
 
