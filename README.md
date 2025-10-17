@@ -173,9 +173,9 @@ To use this server with Claude in Cursor, add to your `.cursor/config.json`:
 ```json
 {
   "mcpServers": {
-    "command-publisher": {
+    "publisher": {
       "command": "npx",
-      "args": ["-y", "cursor-command-publisher"],
+      "args": ["-y", "emmahyde/cursor-command-publisher"],
       "env": {}
     }
   }
@@ -187,9 +187,9 @@ Or specify a custom directory:
 ```json
 {
   "mcpServers": {
-    "command-publisher": {
-      "command": "node",
-      "args": ["/path/to/cursor-command-publisher/build/index.js"],
+    "publisher": {
+      "command": "npx",
+      "args": ["-y", "emmahyde/cursor-command-publisher"],
       "env": {
         "COMMANDS_DIR": "/custom/path"
       }
