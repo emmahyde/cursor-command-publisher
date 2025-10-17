@@ -1,0 +1,235 @@
+{
+  "frontmatter": {
+    "simple": {
+      "template": "---\ncommand: \"shell command to run\"\n---\nrun #{command}",
+      "vars": { "command": "ls -la" }
+    },
+    "noFrontmatter": {
+      "template": "run #{command}",
+      "vars": {}
+    },
+    "multiple": {
+      "template": "---\nhost: \"hostname to connect to\"\nport: \"port number\"\n---\nConnect to #{host} on port #{port}",
+      "vars": { "host": "localhost", "port": "3000" }
+    },
+    "duplicates": {
+      "template": "---\ncmd: \"command to execute\"\n---\n#{cmd} executes #{cmd} twice",
+      "vars": { "cmd": "echo" }
+    },
+    "undefinedVar": {
+      "template": "---\ndefined: \"this is defined\"\n---\n#{defined} and #{undefined_var}",
+      "vars": { "defined": "VALUE" }
+    },
+    "emptyFrontmatter": {
+      "template": "---\n---\ntext #{variable}",
+      "vars": {}
+    },
+    "multilineYaml": {
+      "template": "---\ndescription: \"This is a long\n  multiline description\"\n---\n#{description}",
+      "vars": { "description": "test" }
+    }
+  },
+  "rendering": {
+    "simple": {
+      "template": "---\ncmd: \"command to run\"\n---\nrun #{cmd}",
+      "vars": { "cmd": "ls -la" },
+      "expected": "run ls -la"
+    },
+    "multiple": {
+      "template": "---\nhost: \"hostname\"\nport: \"port number\"\n---\nConnect to #{host} port #{port}",
+      "vars": { "host": "localhost", "port": "3000" },
+      "expected": "Connect to localhost port 3000"
+    },
+    "withPrefix": {
+      "template": "---\nmyvar: \"value\"\n---\nprefix #{myvar} suffix",
+      "vars": { "myvar": "VALUE" },
+      "expected": "prefix VALUE suffix"
+    },
+    "multiline": {
+      "template": "---\nline1: \"first line\"\nline2: \"second line\"\n---\nLine 1: #{line1}\nLine 2: #{line2}",
+      "vars": { "line1": "first", "line2": "second" }
+    },
+    "duplicateRefs": {
+      "template": "---\nmyvar: \"test variable\"\n---\n#{myvar} and #{myvar} again",
+      "vars": { "myvar": "TEST" },
+      "expected": "TEST and TEST again"
+    },
+    "emptyString": {
+      "template": "---\nmyvar: \"test variable\"\n---\nbefore #{myvar} after",
+      "vars": { "myvar": "" },
+      "expected": "before  after"
+    },
+    "specialChars": {
+      "template": "---\ntext: \"text content\"\n---\necho #{text}",
+      "vars": { "text": "hello \"world\" & friends" },
+      "expected": "echo hello \"world\" & friends"
+    }
+  },
+  "optional": {
+    "simpleSuffix": {
+      "template": "---\nname: \"person's name\"\nsuffix?: \"optional title/suffix\"\n---\nHello #{name}#{suffix?}!",
+      "vars": { "name": "Emma", "suffix": " Hyde" },
+      "expected": "Hello Emma Hyde!"
+    },
+    "frontmatterOptional": {
+      "template": "---\nname: \"person's name\"\ntitle?: \"optional title\"\n---\n#{title?}#{name}",
+      "vars": { "name": "Emma", "title": "Dr. " }
+    },
+    "emptyAsNull": {
+      "template": "---\nname: \"person's name\"\ntitle?: \"optional title\"\n---\nHello #{title?}#{name}!",
+      "vars": { "name": "Emma", "title": "" },
+      "expected": "Hello Emma!"
+    },
+    "withValue": {
+      "template": "---\nname: \"person's name\"\ntitle?: \"optional title\"\n---\nHello #{title?}#{name}!",
+      "vars": { "name": "Emma", "title": "Dr. " },
+      "expected": "Hello Dr. Emma!"
+    },
+    "omitted": {
+      "template": "---\nname: \"person's name\"\ntitle?: \"optional title\"\n---\nHello #{title?}#{name}!",
+      "vars": { "name": "Emma" },
+      "expected": "Hello #{title}Emma!"
+    },
+    "schemaRequired": {
+      "template": "---\nrequired: \"required field\"\noptional?: \"optional field\"\n---\n#{required} #{optional?}",
+      "vars": { "required": "req", "optional": "opt" }
+    },
+    "multipleOptional": {
+      "template": "---\nname: \"person's name\"\ntitle?: \"optional title\"\nsuffix?: \"optional suffix\"\n---\n#{title?}#{name}#{suffix?}",
+      "vars": { "name": "Emma" }
+    },
+    "mixedWithEmpty": {
+      "template": "---\ngreeting: \"greeting text\"\ntitle?: \"optional title\"\nname: \"person's name\"\nsuffix?: \"optional suffix\"\n---\n#{greeting} #{title?}#{name}#{suffix?}!",
+      "vars": { "greeting": "Hello", "title": "", "name": "Emma", "suffix": "" },
+      "expected": "Hello Emma!"
+    },
+    "partialFilled": {
+      "template": "---\ntitle?: \"optional title\"\nname: \"person's name\"\nsuffix?: \"optional suffix\"\n---\n#{title?}#{name}#{suffix?}",
+      "vars": { "title": "Dr. ", "name": "Emma", "suffix": "" },
+      "expected": "Dr. Emma"
+    },
+    "frontmatterWithoutPlaceholder": {
+      "template": "---\nname: \"person's name\"\ntitle?: \"optional title\"\n---\nHello #{title}#{name}!",
+      "vars": { "name": "Emma" }
+    },
+    "placeholderOverride": {
+      "template": "---\nname: \"person's name\"\ntitle: \"title\"\n---\nHello #{name}#{title?}!",
+      "vars": { "name": "Emma", "title": "" }
+    },
+    "combined": {
+      "template": "---\nname: \"person's name\"\ntitle?: \"optional title\"\n---\nHello #{title?}#{name}!",
+      "vars": { "name": "Emma", "title": "Dr. " }
+    },
+    "nonEmptyValue": {
+      "template": "---\nprefix?: \"optional prefix\"\nname: \"person's name\"\n---\n#{prefix?}#{name}",
+      "vars": { "prefix": "Ms. ", "name": "Emma Hyde" },
+      "expected": "Ms. Emma Hyde"
+    },
+    "complex": {
+      "template": "---\ntopic: \"topic of the article\"\npath: \"location to entrypoint file\"\nauthor?: \"author name\"\ndate?: \"publication date\"\n---\n# #{topic}\n\nDocumentation for #{path}\n\nAuthor: #{author?}\nDate: #{date?}",
+      "varsWithAll": { "topic": "Testing", "path": "/src/test.ts", "author": "Emma Hyde", "date": "2025-10-17" },
+      "varsEmpty": { "topic": "Testing", "path": "/src/test.ts", "author": "", "date": "" }
+    }
+  },
+  "edgeCases": {
+    "adjacent": {
+      "template": "---\na: \"first\"\nb: \"second\"\nc: \"third\"\n---\n#{a}#{b}#{c}",
+      "vars": { "a": "1", "b": "2", "c": "3" }
+    },
+    "atStart": {
+      "template": "---\ncmd: \"command\"\n---\n#{cmd} is running",
+      "vars": { "cmd": "test" }
+    },
+    "atEnd": {
+      "template": "---\ncmd: \"command\"\n---\nExecute: #{cmd}",
+      "vars": { "cmd": "test" }
+    },
+    "onlyPlaceholder": {
+      "template": "---\ncmd: \"command\"\n---\n#{cmd}",
+      "vars": { "cmd": "test" }
+    },
+    "nestedDollar": {
+      "template": "---\namount: \"dollar amount\"\n---\nprice is $ #{amount} dollars",
+      "vars": { "amount": "50" }
+    },
+    "specialCharsYaml": {
+      "template": "---\nmyvar: 'description with: colons, commas, and \"quotes\"'\n---\n#{myvar}",
+      "vars": { "myvar": "test" }
+    }
+  },
+  "roundTrip": {
+    "simple": {
+      "template": "---\nsource: \"source format\"\ntarget: \"target format\"\n---\nConvert #{source} to #{target}",
+      "vars": { "source": "XML", "target": "JSON" },
+      "expected": "Convert XML to JSON"
+    },
+    "complex": {
+      "template": "---\nlang1: \"source language\"\nlang2: \"target language\"\ntext: \"text to translate\"\nformat: \"output format\"\n---\nTranslate from #{lang1} to #{lang2}:\n\n#{text}\n\nOutput format: #{format}",
+      "vars": { "lang1": "English", "lang2": "Spanish", "text": "Hello world", "format": "plain text" }
+    }
+  },
+  "frontmatterOnly": {
+    "codeBlocks": {
+      "template": "---\nname: \"person's name\"\n---\nHello #{name}!\n\nHere's an example:\n```\n#{variable} <- this is literal because not in frontmatter\n```\n\nGoodbye #{name}!",
+      "vars": { "name": "Alice" }
+    },
+    "distinguish": {
+      "template": "---\nrealVar: \"actual variable\"\n---\nUse #{realVar} here and #{notDefined} stays literal.",
+      "vars": { "realVar": "VALUE" },
+      "expected": "Use VALUE here and #{notDefined} stays literal."
+    },
+    "exampleSyntax": {
+      "template": "---\nname: \"person's name\"\n---\nHello #{name}!\n\nExample usage: #{example}",
+      "vars": { "name": "Alice" }
+    }
+  },
+  "server": {
+    "newsave": {
+      "template": "---\nfrom: \"source language\"\nto: \"target language\"\ntext: \"text to translate\"\n---\nTranslate: #{from} to #{to}: #{text}",
+      "vars": { "from": "en", "to": "es", "text": "hello" }
+    },
+    "update": {
+      "v1": {
+        "template": "---\nvar: \"variable\"\n---\nVersion 1: #{var}",
+        "vars": { "var": "test" }
+      },
+      "v2": {
+        "template": "---\nvar1: \"first variable\"\nvar2: \"second variable\"\n---\nVersion 2: #{var1} and #{var2}",
+        "vars": { "var1": "a", "var2": "b" }
+      }
+    },
+    "multi": {
+      "template": "---\nfrom: \"source location\"\nto: \"destination location\"\ntext: \"message text\"\n---\nFrom #{from} to #{to}: #{text}",
+      "vars": { "from": "A", "to": "B", "text": "msg" }
+    },
+    "schema": {
+      "template": "---\nvar1: \"first variable\"\nvar2: \"second variable\"\n---\n#{var1} and #{var2}",
+      "vars": { "var1": "a", "var2": "b" }
+    },
+    "special": {
+      "template": "---\ntext: 'text with \"quotes\" and, commas'\n---\nEcho: #{text}",
+      "vars": { "text": "test" }
+    },
+    "optionalSchema": {
+      "template": "---\nrequired: \"required field\"\noptional?: \"optional field\"\n---\n#{required} #{optional?}",
+      "vars": { "required": "req" }
+    },
+    "optionalValidation": {
+      "template": "---\nname: \"person's name\"\ntitle?: \"optional title\"\n---\nHello #{title?}#{name}!",
+      "vars": { "name": "Emma" }
+    },
+    "optionalEmpty": {
+      "template": "---\ngreeting: \"greeting text\"\ntitle?: \"optional title\"\nname: \"person's name\"\n---\n#{greeting} #{title?}#{name}!",
+      "vars": { "greeting": "Hi", "title": "", "name": "Emma" }
+    },
+    "multiOptional": {
+      "template": "---\nname: \"person's name\"\ntitle?: \"optional title\"\nsuffix?: \"optional suffix\"\n---\n#{title?}#{name}#{suffix?}",
+      "vars": { "name": "Emma" }
+    },
+    "promptOptional": {
+      "template": "---\ntopic: \"topic of discussion\"\ncontext?: \"optional context\"\n---\nDiscuss #{topic}#{context? with context: }#{context?}",
+      "vars": { "topic": "AI", "context": "testing" }
+    }
+  }
+}
+

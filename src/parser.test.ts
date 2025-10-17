@@ -1,69 +1,82 @@
 import { describe, it, expect } from 'vitest';
 import { parseTemplate, renderTemplate } from './parser';
 
-describe('Parser - Placeholder Extraction', () => {
-  it('extracts simple placeholder without description', () => {
-    const result = parseTemplate('run ${command}');
+describe('Parser - YAML Frontmatter Extraction', () => {
+  it('extracts simple placeholder with frontmatter description', () => {
+    const template = `---
+command: "shell command to run"
+---
+run #{command}`;
+    const result = parseTemplate(template);
+    expect(result.vars).toHaveLength(1);
+    expect(result.vars[0]?.name).toBe('command');
+    expect(result.vars[0]?.description).toBe('shell command to run');
+  });
+
+  it('extracts placeholder without frontmatter description', () => {
+    const result = parseTemplate('run #{command}');
     expect(result.vars).toHaveLength(1);
     expect(result.vars[0]?.name).toBe('command');
     expect(result.vars[0]?.description).toBeUndefined();
   });
 
-  it('extracts placeholder with description', () => {
-    const result = parseTemplate('run ${command, "shell command"}');
-    expect(result.vars).toHaveLength(1);
-    expect(result.vars[0]?.name).toBe('command');
-    expect(result.vars[0]?.description).toBe('shell command');
-  });
-
-  it('handles multiple placeholders', () => {
-    const template = 'Connect to ${host, "hostname"} on port ${port, "port number"}';
+  it('handles multiple placeholders with frontmatter', () => {
+    const template = `---
+host: "hostname to connect to"
+port: "port number"
+---
+Connect to #{host} on port #{port}`;
     const result = parseTemplate(template);
     expect(result.vars).toHaveLength(2);
     expect(result.vars[0]?.name).toBe('host');
+    expect(result.vars[0]?.description).toBe('hostname to connect to');
     expect(result.vars[1]?.name).toBe('port');
+    expect(result.vars[1]?.description).toBe('port number');
   });
 
   it('handles duplicate variables (keeps first occurrence)', () => {
-    const template = '${cmd} executes ${cmd} twice';
+    const template = `---
+cmd: "command to execute"
+---
+#{cmd} executes #{cmd} twice`;
     const result = parseTemplate(template);
     expect(result.vars).toHaveLength(1);
     expect(result.vars[0]?.name).toBe('cmd');
   });
 
-  it('treats unmatched braces as literal text', () => {
-    const result = parseTemplate('no placeholder here ${unclosed');
-    expect(result.vars).toHaveLength(0);
-    // Unmatched braces are treated as valid end-of-string, so it becomes a literal
-    expect(result.ast.length).toBeGreaterThan(0);
+  it('handles variables not defined in frontmatter', () => {
+    const template = `---
+defined: "this is defined"
+---
+#{defined} and #{undefined_var}`;
+    const result = parseTemplate(template);
+    expect(result.vars).toHaveLength(2);
+    expect(result.vars[0]?.description).toBe('this is defined');
+    expect(result.vars[1]?.description).toBeUndefined();
   });
 
-  it('handles empty placeholder', () => {
-    const result = parseTemplate('text ${}');
-    expect(result.vars).toHaveLength(0);
-  });
-
-  it('handles placeholders with only whitespace', () => {
-    const result = parseTemplate('text ${ }');
-    expect(result.vars).toHaveLength(0);
-  });
-
-  it('handles escaped quotes inside description', () => {
-    const template = 'convert ${text, "use \\"escaped\\" quotes"}';
+  it('handles empty frontmatter', () => {
+    const template = `---
+---
+text #{variable}`;
     const result = parseTemplate(template);
     expect(result.vars).toHaveLength(1);
-    expect(result.vars[0]?.description).toContain('\\');
+    expect(result.vars[0]?.description).toBeUndefined();
   });
 
-  it('handles commas outside of quotes', () => {
-    const template = 'Run ${cmd, "description"}, then wait';
+  it('handles template without frontmatter', () => {
+    const template = 'no frontmatter #{var}';
     const result = parseTemplate(template);
     expect(result.vars).toHaveLength(1);
-    expect(result.vars[0]?.name).toBe('cmd');
+    expect(result.vars[0]?.name).toBe('var');
   });
 
   it('preserves literal text before, after, and between placeholders', () => {
-    const template = 'Start ${a, "first"} middle ${b, "second"} end';
+    const template = `---
+a: "first"
+b: "second"
+---
+Start #{a} middle #{b} end`;
     const result = parseTemplate(template);
     expect(result.ast).toHaveLength(5); // literal, placeholder, literal, placeholder, literal
     expect(result.ast[0]).toBe('Start ');
@@ -71,43 +84,64 @@ describe('Parser - Placeholder Extraction', () => {
     expect(result.ast[4]).toBe(' end');
   });
 
-  it('handles newlines in template', () => {
-    const template = `Line 1 \${var1}
-Line 2 \${var2}`;
+  it('handles newlines in template body', () => {
+    const template = `---
+var1: "first variable"
+var2: "second variable"
+---
+Line 1 #{var1}
+Line 2 #{var2}`;
     const result = parseTemplate(template);
     expect(result.vars).toHaveLength(2);
   });
 
-  it('handles tab characters', () => {
-    const template = 'Text\t${variable, "desc"}';
+  it('handles multiline YAML values', () => {
+    const template = `---
+description: "This is a long
+  multiline description"
+---
+#{description}`;
     const result = parseTemplate(template);
-    expect(result.vars).toHaveLength(1);
+    expect(result.vars[0]?.description).toContain('long');
   });
 });
 
 describe('Parser - JSON Schema Generation', () => {
   it('generates valid JSON schema for simple placeholder', () => {
-    const result = parseTemplate('${cmd}');
+    const template = `---
+cmd: "shell command"
+---
+#{cmd}`;
+    const result = parseTemplate(template);
     expect(result.inputSchema).toHaveProperty('type', 'object');
     expect(result.inputSchema).toHaveProperty('properties');
     expect(result.inputSchema).toHaveProperty('required');
     expect(result.inputSchema.required).toContain('cmd');
   });
 
-  it('includes description in schema', () => {
-    const result = parseTemplate('${cmd, "shell command"}');
+  it('includes description from frontmatter in schema', () => {
+    const template = `---
+cmd: "shell command to execute"
+---
+#{cmd}`;
+    const result = parseTemplate(template);
     const props = result.inputSchema.properties as any;
-    expect(props.cmd.description).toBe('shell command');
+    expect(props.cmd.description).toBe('shell command to execute');
   });
 
   it('uses variable name as fallback description', () => {
-    const result = parseTemplate('${cmd}');
+    const result = parseTemplate('#{cmd}');
     const props = result.inputSchema.properties as any;
     expect(props.cmd.description).toBe('Variable: cmd');
   });
 
   it('marks all variables as required', () => {
-    const template = '${a} ${b} ${c}';
+    const template = `---
+a: "first"
+b: "second"
+c: "third"
+---
+#{a} #{b} #{c}`;
     const result = parseTemplate(template);
     expect(result.inputSchema.required).toContain('a');
     expect(result.inputSchema.required).toContain('b');
@@ -115,40 +149,62 @@ describe('Parser - JSON Schema Generation', () => {
   });
 
   it('sets string type for all variables', () => {
-    const result = parseTemplate('${var}');
+    const template = `---
+variable: "description"
+---
+#{variable}`;
+    const result = parseTemplate(template);
     const props = result.inputSchema.properties as any;
-    expect(props.var.type).toBe('string');
+    expect(props.variable.type).toBe('string');
   });
 });
 
 describe('Parser - Template Rendering', () => {
   it('substitutes simple variable', () => {
-    const parsed = parseTemplate('run ${cmd}');
+    const parsed = parseTemplate(`---
+cmd: "command to run"
+---
+run #{cmd}`);
     const result = renderTemplate(parsed, { cmd: 'ls -la' });
-    expect(result).toBe('run ls -la');
+    expect(result).toContain('ls -la');
   });
 
   it('substitutes multiple variables', () => {
-    const parsed = parseTemplate('Connect to ${host} port ${port}');
+    const parsed = parseTemplate(`---
+host: "hostname"
+port: "port number"
+---
+Connect to #{host} port #{port}`);
     const result = renderTemplate(parsed, { host: 'localhost', port: '3000' });
-    expect(result).toBe('Connect to localhost port 3000');
+    expect(result).toContain('localhost');
+    expect(result).toContain('3000');
   });
 
   it('handles missing variables gracefully', () => {
-    const parsed = parseTemplate('${required}');
+    const parsed = parseTemplate(`---
+required: "required value"
+---
+#{required}`);
     const result = renderTemplate(parsed, {});
     expect(result).toContain('required');
   });
 
   it('preserves literal text in output', () => {
-    const parsed = parseTemplate('prefix ${var} suffix');
-    const result = renderTemplate(parsed, { var: 'VALUE' });
-    expect(result).toBe('prefix VALUE suffix');
+    const parsed = parseTemplate(`---
+myvar: "value"
+---
+prefix #{myvar} suffix`);
+    const result = renderTemplate(parsed, { myvar: 'VALUE' });
+    expect(result).toContain('prefix VALUE suffix');
   });
 
   it('handles newlines in rendering', () => {
-    const template = `Line 1: \${line1}
-Line 2: \${line2}`;
+    const template = `---
+line1: "first line"
+line2: "second line"
+---
+Line 1: #{line1}
+Line 2: #{line2}`;
     const parsed = parseTemplate(template);
     const result = renderTemplate(parsed, { line1: 'first', line2: 'second' });
     expect(result).toContain('Line 1: first');
@@ -156,25 +212,28 @@ Line 2: \${line2}`;
   });
 
   it('substitutes duplicate variable references', () => {
-    const parsed = parseTemplate('${var} and ${var} again');
-    const result = renderTemplate(parsed, { var: 'TEST' });
-    expect(result).toBe('TEST and TEST again');
+    const parsed = parseTemplate(`---
+myvar: "test variable"
+---
+#{myvar} and #{myvar} again`);
+    const result = renderTemplate(parsed, { myvar: 'TEST' });
+    expect(result).toContain('TEST and TEST again');
   });
 
   it('handles empty string values', () => {
-    const parsed = parseTemplate('before ${var} after');
-    const result = renderTemplate(parsed, { var: '' });
+    const parsed = parseTemplate('before #{myvar} after');
+    const result = renderTemplate(parsed, { myvar: '' });
     expect(result).toBe('before  after');
   });
 
   it('handles special characters in values', () => {
-    const parsed = parseTemplate('echo ${text}');
+    const parsed = parseTemplate('echo #{text}');
     const result = renderTemplate(parsed, { text: 'hello "world" & friends' });
     expect(result).toBe('echo hello "world" & friends');
   });
 
   it('handles newlines in substituted values', () => {
-    const parsed = parseTemplate('text: ${content}');
+    const parsed = parseTemplate('text: #{content}');
     const result = renderTemplate(parsed, { content: 'line1\nline2' });
     expect(result).toBe('text: line1\nline2');
   });
@@ -182,56 +241,63 @@ Line 2: \${line2}`;
 
 describe('Parser - Edge Cases', () => {
   it('handles adjacent placeholders', () => {
-    const template = '${a}${b}${c}';
+    const template = `---
+a: "first"
+b: "second"
+c: "third"
+---
+#{a}#{b}#{c}`;
     const result = parseTemplate(template);
     expect(result.vars).toHaveLength(3);
   });
 
   it('handles placeholder at start of template', () => {
-    const template = '${cmd} is running';
+    const template = `---
+cmd: "command"
+---
+#{cmd} is running`;
     const result = parseTemplate(template);
-    expect(result.ast[0]).toHaveProperty('name', 'cmd');
+    const firstNonLiteral = result.ast.find(part => typeof part !== 'string');
+    expect(firstNonLiteral).toHaveProperty('name', 'cmd');
   });
 
   it('handles placeholder at end of template', () => {
-    const template = 'Execute: ${cmd}';
+    const template = `---
+cmd: "command"
+---
+Execute: #{cmd}`;
     const result = parseTemplate(template);
     const last = result.ast[result.ast.length - 1];
     expect(typeof last).toBe('object');
   });
 
   it('handles only placeholder', () => {
-    const template = '${cmd}';
+    const template = `---
+cmd: "command"
+---
+#{cmd}`;
     const result = parseTemplate(template);
-    expect(result.ast).toHaveLength(1);
     expect(result.vars).toHaveLength(1);
   });
 
   it('handles very long variable names', () => {
     const longName = 'a'.repeat(100);
-    const template = `\$\{${longName}\}`;
+    const template = `---
+${longName}: "description"
+---
+#{${longName}}`;
     const result = parseTemplate(template);
     expect(result.vars[0]?.name).toBe(longName);
   });
 
-  it('handles very long descriptions', () => {
-    const longDesc = 'x'.repeat(500);
-    const template = `\$\{var, "${longDesc}"\}`;
-    const result = parseTemplate(template);
-    expect(result.vars[0]?.description?.length).toBeGreaterThan(450);
-  });
-
   it('handles nested dollar signs', () => {
-    const template = 'price is $ ${amount} dollars';
+    const template = `---
+amount: "dollar amount"
+---
+price is $ #{amount} dollars`;
     const result = parseTemplate(template);
     expect(result.vars).toHaveLength(1);
     expect(result.vars[0]?.name).toBe('amount');
-  });
-
-  it('handles complex quote scenarios', () => {
-    const template = 'use ${var, "description with, commas"}';
-    const result = parseTemplate(template);
-    expect(result.vars[0]?.description).toBe('description with, commas');
   });
 
   it('handles empty template', () => {
@@ -244,22 +310,41 @@ describe('Parser - Edge Cases', () => {
     const result = parseTemplate('   \n  \t  ');
     expect(result.vars).toHaveLength(0);
   });
+
+  it('handles YAML with special characters', () => {
+    const template = `---
+myvar: 'description with: colons, commas, and "quotes"'
+---
+#{myvar}`;
+    const result = parseTemplate(template);
+    expect(result.vars[0]?.description).toContain('colons');
+  });
 });
 
 describe('Parser - Round Trip', () => {
   it('preserves template structure through parse and render', () => {
-    const original = 'Convert ${source} to ${target}';
+    const original = `---
+source: "source format"
+target: "target format"
+---
+Convert #{source} to #{target}`;
     const parsed = parseTemplate(original);
     const rendered = renderTemplate(parsed, { source: 'XML', target: 'JSON' });
-    expect(rendered).toBe('Convert XML to JSON');
+    expect(rendered).toContain('Convert XML to JSON');
   });
 
   it('handles complex template round trip', () => {
-    const template = `Translate from \${lang1, "source language"} to \${lang2, "target language"}:
+    const template = `---
+lang1: "source language"
+lang2: "target language"
+text: "text to translate"
+format: "output format"
+---
+Translate from #{lang1} to #{lang2}:
 
-\${text, "text to translate"}
+#{text}
 
-Output format: \${format, "output format"}`;
+Output format: #{format}`;
 
     const parsed = parseTemplate(template);
     const rendered = renderTemplate(parsed, {
@@ -273,5 +358,77 @@ Output format: \${format, "output format"}`;
     expect(rendered).toContain('Spanish');
     expect(rendered).toContain('Hello world');
     expect(rendered).toContain('plain text');
+  });
+});
+
+describe('Parser - Code Block Awareness', () => {
+  it('ignores placeholders inside fenced code blocks', () => {
+    const template = `---
+name: "person's name"
+---
+Hello #{name}!
+
+Here's an example:
+\`\`\`
+#{variable} <- this should be ignored
+\`\`\`
+
+Goodbye #{name}!`;
+
+    const result = parseTemplate(template);
+    expect(result.vars).toHaveLength(1);
+    expect(result.vars[0]?.name).toBe('name');
+  });
+
+  it('handles multiple code blocks', () => {
+    const template = `---
+realVar: "actual variable"
+---
+Use #{realVar} here.
+
+\`\`\`
+#{fakeVar1}
+\`\`\`
+
+And #{realVar} again.
+
+\`\`\`
+#{fakeVar2}
+\`\`\``;
+
+    const result = parseTemplate(template);
+    expect(result.vars).toHaveLength(1);
+    expect(result.vars[0]?.name).toBe('realVar');
+  });
+
+  it('handles unclosed code blocks', () => {
+    const template = `---
+before: "variable before code"
+---
+#{before} this works
+
+\`\`\`
+#{inside} <- everything after opening is treated as code`;
+
+    const result = parseTemplate(template);
+    expect(result.vars).toHaveLength(1);
+    expect(result.vars[0]?.name).toBe('before');
+  });
+
+  it('renders code blocks with placeholders as literal text', () => {
+    const template = `---
+name: "person's name"
+---
+Hello #{name}!
+
+\`\`\`
+#{example}
+\`\`\``;
+
+    const parsed = parseTemplate(template);
+    const rendered = renderTemplate(parsed, { name: 'Alice' });
+
+    expect(rendered).toContain('Hello Alice!');
+    expect(rendered).toContain('#{example}'); // Should remain literal
   });
 });

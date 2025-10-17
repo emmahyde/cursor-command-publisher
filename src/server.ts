@@ -7,6 +7,8 @@ import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
+  ListPromptsRequestSchema,
+  GetPromptRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import { parseTemplate, renderTemplate, ParsedTemplate } from "./parser.js";
 import { CommandWatcher } from "./watcher.js";
@@ -22,7 +24,7 @@ export class CommandServer {
   private tools: Map<string, RegisteredTool> = new Map();
   private watcher: CommandWatcher;
 
-  constructor(commandsDir: string) {
+  constructor(commandsDirs: string | string[]) {
     this.server = new Server(
       {
         name: "mcp-command-server",
@@ -31,11 +33,12 @@ export class CommandServer {
       {
         capabilities: {
           tools: {},
+          prompts: {},
         },
       }
     );
 
-    this.watcher = new CommandWatcher(commandsDir);
+    this.watcher = new CommandWatcher(commandsDirs);
     this.setupHandlers();
   }
 
@@ -87,13 +90,54 @@ export class CommandServer {
       };
     });
 
+    // List available prompts (same as tools)
+    this.server.setRequestHandler(ListPromptsRequestSchema, async () => {
+      const prompts = Array.from(this.tools.values()).map((tool) => ({
+        name: tool.name,
+        description: tool.description || `Prompt for ${tool.name}`,
+        arguments: tool.parsed.vars.map((v) => ({
+          name: v.name,
+          description: v.description || `Variable: ${v.name}`,
+          required: true,
+        })),
+      }));
+
+      return { prompts };
+    });
+
+    // Get specific prompt
+    this.server.setRequestHandler(GetPromptRequestSchema, async (request) => {
+      const { name, arguments: args = {} } = request.params;
+
+      const tool = this.tools.get(name);
+      if (!tool) {
+        throw new Error(`Prompt not found: ${name}`);
+      }
+
+      // Render the template with provided arguments
+      const result = renderTemplate(tool.parsed, args as Record<string, string>);
+
+      return {
+        description: tool.description || `Prompt for ${tool.name}`,
+        messages: [
+          {
+            role: "user",
+            content: {
+              type: "text",
+              text: result,
+            },
+          },
+        ],
+      };
+    });
+
     // Set up file watcher
     this.watcher.onFileChange(async (event, filePath, content) => {
       const toolName = path.basename(filePath, ".md");
 
       if (event === "unlink") {
         this.tools.delete(toolName);
-        console.error(`[–] Unregistered tool: ${toolName}`);
+        console.log(`[–] Unregistered tool and prompt: ${toolName}`);
       } else if (content) {
         try {
           const parsed = parseTemplate(content);
@@ -105,7 +149,7 @@ export class CommandServer {
             parsed,
           });
 
-          console.error(`[+] ${event === "add" ? "Registered" : "Updated"} tool: ${toolName}`);
+          console.log(`[+] ${event === "add" ? "Registered" : "Updated"} tool and prompt: ${toolName}`);
         } catch (error) {
           console.error(`[!] Failed to parse ${toolName}:`, error);
         }

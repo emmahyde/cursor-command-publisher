@@ -1,7 +1,13 @@
 /**
- * Template parser that safely extracts ${name, "description"} placeholders
- * using a tokenizer to handle edge cases (commas in quotes, nested blocks)
+ * Template parser that extracts #{name} placeholders from markdown with YAML frontmatter
+ * Code blocks (```...```) are ignored during variable extraction.
+ * ---
+ * name: "description"
+ * ---
+ * Template content with #{name} references
  */
+
+import YAML from "yaml";
 
 export type Placeholder = {
   name: string;
@@ -18,66 +24,61 @@ export type ParsedTemplate = {
 };
 
 /**
- * Safely parse a template string and extract placeholders.
- * Returns AST with ordered unique variables.
+ * Parse a template with YAML frontmatter and extract #{name} placeholders.
+ * Code blocks (```...```) are skipped during parsing.
+ * Returns AST with ordered unique variables defined in frontmatter.
  */
-export function parseTemplate(template: string): ParsedTemplate {
+export function parseTemplate(content: string): ParsedTemplate {
+  // Extract YAML frontmatter
+  const { frontmatter, body } = extractFrontmatter(content);
+
+  // Find all fenced code block ranges
+  const codeBlockRanges = findCodeBlockRanges(body);
+
   const ast: Array<string | Placeholder> = [];
   const vars: Placeholder[] = [];
   const seen = new Map<string, Placeholder>();
 
+  // Parse the body for #{name} placeholders
   let i = 0;
-  while (i < template.length) {
-    const open = template.indexOf("${", i);
+  while (i < body.length) {
+    const open = body.indexOf("#{", i);
     if (open === -1) {
-      if (i < template.length) ast.push(template.slice(i));
+      if (i < body.length) ast.push(body.slice(i));
       break;
     }
 
     // Push leading literal
-    if (open > i) ast.push(template.slice(i, open));
+    if (open > i) ast.push(body.slice(i, open));
 
-    // Find matching } while respecting quoted strings
-    let j = open + 2;
-    let inQuotes = false;
-    let escaped = false;
-
-    while (j < template.length) {
-      const ch = template[j];
-
-      if (escaped) {
-        escaped = false;
-        j++;
-        continue;
-      }
-
-      if (ch === "\\") {
-        escaped = true;
-        j++;
-        continue;
-      }
-
-      if (ch === '"') {
-        inQuotes = !inQuotes;
-      } else if (ch === "}" && !inQuotes) {
-        break;
-      }
-
-      j++;
-    }
-
-    if (j >= template.length) {
+    // Find matching }
+    const close = body.indexOf("}", open + 2);
+    if (close === -1) {
       // Unmatched; treat as literal
-      ast.push(template.slice(open));
+      ast.push(body.slice(open));
       break;
     }
 
-    // Parse the placeholder content
-    const inner = template.slice(open + 2, j).trim();
-    const { name, description } = parsePlaceholder(inner);
+    // Check if this placeholder is inside a code block
+    const isInCodeBlock = codeBlockRanges.some(
+      ([start, end]) => open >= start && close < end
+    );
+
+    if (isInCodeBlock) {
+      // Treat as literal text
+      ast.push(body.slice(open, close + 1));
+      i = close + 1;
+      continue;
+    }
+
+    // Extract variable name
+    const name = body.slice(open + 2, close).trim();
 
     if (name) {
-      const ph: Placeholder = { name, description, start: open, end: j + 1 };
+      // Look up description from frontmatter
+      const description = frontmatter[name] || undefined;
+
+      const ph: Placeholder = { name, description, start: open, end: close + 1 };
       ast.push(ph);
 
       // Only keep first occurrence of each variable
@@ -87,7 +88,7 @@ export function parseTemplate(template: string): ParsedTemplate {
       }
     }
 
-    i = j + 1;
+    i = close + 1;
   }
 
   // Build JSON Schema from ordered unique vars
@@ -108,59 +109,74 @@ export function parseTemplate(template: string): ParsedTemplate {
   return {
     ast,
     vars,
-    template,
+    template: content,
     inputSchema,
   };
 }
 
 /**
- * Parse a single placeholder like: name, "description" or just name
+ * Find all fenced code block ranges (```...```) in the body.
+ * Returns array of [start, end] positions.
  */
-function parsePlaceholder(inner: string): { name: string; description?: string } {
-  // Find first comma outside quotes
-  let commaIdx = -1;
-  let inQuotes = false;
-  let escaped = false;
+function findCodeBlockRanges(body: string): Array<[number, number]> {
+  const ranges: Array<[number, number]> = [];
+  let i = 0;
 
-  for (let k = 0; k < inner.length; k++) {
-    const ch = inner[k];
+  while (i < body.length) {
+    // Look for opening ```
+    const openFence = body.indexOf("```", i);
+    if (openFence === -1) break;
 
-    if (escaped) {
-      escaped = false;
-      continue;
-    }
-
-    if (ch === "\\") {
-      escaped = true;
-      continue;
-    }
-
-    if (ch === '"') {
-      inQuotes = !inQuotes;
-    } else if (ch === "," && !inQuotes) {
-      commaIdx = k;
+    // Look for closing ```
+    const closeFence = body.indexOf("```", openFence + 3);
+    if (closeFence === -1) {
+      // Unclosed code block, treat rest of document as code
+      ranges.push([openFence, body.length]);
       break;
     }
+
+    ranges.push([openFence, closeFence + 3]);
+    i = closeFence + 3;
   }
 
-  let name: string;
-  let description: string | undefined;
+  return ranges;
+}
 
-  if (commaIdx === -1) {
-    name = inner.trim();
-  } else {
-    name = inner.slice(0, commaIdx).trim();
-    const rest = inner.slice(commaIdx + 1).trim();
+/**
+ * Extract YAML frontmatter from markdown content
+ * Returns frontmatter object and body content
+ */
+function extractFrontmatter(content: string): {
+  frontmatter: Record<string, string>;
+  body: string;
+} {
+  const frontmatterRegex = /^---\s*\n([\s\S]*?)\n---\s*\n([\s\S]*)$/;
+  const match = content.match(frontmatterRegex);
 
-    // Extract quoted description
-    if (rest.startsWith('"') && rest.endsWith('"') && rest.length >= 2) {
-      description = rest.slice(1, -1);
-    } else if (rest.length > 0) {
-      description = rest;
+  if (!match) {
+    // No frontmatter, return empty object and full content as body
+    return { frontmatter: {}, body: content };
+  }
+
+  const yamlContent = match[1];
+  const body = match[2];
+
+  try {
+    const parsed = YAML.parse(yamlContent);
+    const frontmatter: Record<string, string> = {};
+
+    // Ensure all values are strings
+    if (parsed && typeof parsed === "object") {
+      for (const [key, value] of Object.entries(parsed)) {
+        frontmatter[key] = String(value);
+      }
     }
-  }
 
-  return { name, description };
+    return { frontmatter, body };
+  } catch (error) {
+    console.error("Failed to parse YAML frontmatter:", error);
+    return { frontmatter: {}, body: content };
+  }
 }
 
 /**
@@ -177,7 +193,7 @@ export function renderTemplate(
       result += part;
     } else {
       const value = variables[part.name];
-      result += value ?? `\${${part.name}, "${part.description || part.name}"}`;
+      result += value ?? `#{${part.name}}`;
     }
   }
 

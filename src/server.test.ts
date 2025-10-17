@@ -70,8 +70,8 @@ describe('CommandServer', () => {
     const file1 = path.join(testDir, 'cmd1.md');
     const file2 = path.join(testDir, 'cmd2.md');
 
-    await fs.writeFile(file1, 'Command 1: ${var1}');
-    await fs.writeFile(file2, 'Command 2: ${var2}');
+    await fs.writeFile(file1, 'Command 1: #{var1}');
+    await fs.writeFile(file2, 'Command 2: #{var2}');
 
     server = new CommandServer(testDir);
     await (server as any).watcher.start();
@@ -99,7 +99,12 @@ describe('CommandServer', () => {
 
     // User saves a new command file
     const newCmdFile = path.join(testDir, 'newsave.md');
-    const content = 'Translate: ${from, "source"} to ${to, "target"}: ${text}';
+    const content = `---
+from: "source language"
+to: "target language"
+text: "text to translate"
+---
+Translate: #{from} to #{to}: #{text}`;
     await fs.writeFile(newCmdFile, content);
 
     // Wait for watcher to detect and process
@@ -122,7 +127,7 @@ describe('CommandServer', () => {
 
   it('updates tools when files change', async () => {
     const cmdFile = path.join(testDir, 'update.md');
-    await fs.writeFile(cmdFile, 'Version 1: ${var}');
+    await fs.writeFile(cmdFile, 'Version 1: #{var}');
 
     server = new CommandServer(testDir);
     await (server as any).watcher.start();
@@ -134,7 +139,7 @@ describe('CommandServer', () => {
     expect(tool?.parsed.vars[0]?.name).toBe('var');
 
     // Update file with new variables
-    await fs.writeFile(cmdFile, 'Version 2: ${var1} and ${var2}');
+    await fs.writeFile(cmdFile, 'Version 2: #{var1} and #{var2}');
     await new Promise((resolve) => setTimeout(resolve, 500));
 
     // Check updated state
@@ -147,7 +152,7 @@ describe('CommandServer', () => {
 
   it('removes tools when files are deleted', async () => {
     const cmdFile = path.join(testDir, 'delete.md');
-    await fs.writeFile(cmdFile, 'Delete me: ${var}');
+    await fs.writeFile(cmdFile, 'Delete me: #{var}');
 
     server = new CommandServer(testDir);
     await (server as any).watcher.start();
@@ -170,7 +175,7 @@ describe('CommandServer', () => {
     const cmdFile = path.join(testDir, 'described.md');
     const content = `This is the tool description
 
-Execute: \${cmd}`;
+Execute: #{cmd}`;
 
     await fs.writeFile(cmdFile, content);
 
@@ -186,7 +191,7 @@ Execute: \${cmd}`;
 
   it('handles multiple variables in templates', async () => {
     const cmdFile = path.join(testDir, 'multi.md');
-    const content = 'From \${from} to \${to}: \${text}';
+    const content = 'From #{from} to #{to}: #{text}';
 
     await fs.writeFile(cmdFile, content);
 
@@ -207,7 +212,11 @@ Execute: \${cmd}`;
 
   it('generates correct JSON schema for tools', async () => {
     const cmdFile = path.join(testDir, 'schema.md');
-    const content = '\${var1, "first variable"} and \${var2, "second variable"}';
+    const content = `---
+var1: "first variable"
+var2: "second variable"
+---
+#{var1} and #{var2}`;
 
     await fs.writeFile(cmdFile, content);
 
@@ -230,7 +239,7 @@ Execute: \${cmd}`;
 
   it('handles invalid templates gracefully', async () => {
     const cmdFile = path.join(testDir, 'invalid.md');
-    const content = 'Invalid: ${unclosed';
+    const content = 'Invalid: #{unclosed';
 
     await fs.writeFile(cmdFile, content);
 
@@ -249,7 +258,10 @@ Execute: \${cmd}`;
 
   it('handles special characters in templates', async () => {
     const cmdFile = path.join(testDir, 'special.md');
-    const content = 'Echo: \${text, "text with \\"quotes\\" and, commas"}';
+    const content = `---
+text: "text with \\"quotes\\" and, commas"
+---
+Echo: #{text}`;
 
     await fs.writeFile(cmdFile, content);
 
@@ -269,8 +281,8 @@ Execute: \${cmd}`;
     const mdFile = path.join(testDir, 'process.md');
     const txtFile = path.join(testDir, 'ignore.txt');
 
-    await fs.writeFile(mdFile, 'Process: \${var}');
-    await fs.writeFile(txtFile, 'Ignore: \${var}');
+    await fs.writeFile(mdFile, 'Process: #{var}');
+    await fs.writeFile(txtFile, 'Ignore: #{var}');
 
     server = new CommandServer(testDir);
     await (server as any).watcher.start();

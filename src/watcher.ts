@@ -15,11 +15,11 @@ export type FileChangeHandler = (
 
 export class CommandWatcher {
   private watcher: chokidar.FSWatcher | null = null;
-  private commandsDir: string;
+  private commandsDirs: string[];
   private handlers: Set<FileChangeHandler> = new Set();
 
-  constructor(commandsDir: string) {
-    this.commandsDir = commandsDir;
+  constructor(commandsDirs: string | string[]) {
+    this.commandsDirs = Array.isArray(commandsDirs) ? commandsDirs : [commandsDirs];
   }
 
   /**
@@ -30,24 +30,32 @@ export class CommandWatcher {
   }
 
   /**
-   * Start watching the commands directory
+   * Start watching the commands directories
    */
   async start(): Promise<void> {
-    // Ensure directory exists
-    await fs.mkdir(this.commandsDir, { recursive: true });
+    // Load initial files from all directories
+    for (const commandsDir of this.commandsDirs) {
+      // Ensure directory exists
+      await fs.mkdir(commandsDir, { recursive: true });
 
-    // Load initial files
-    const files = await fs.readdir(this.commandsDir);
-    for (const file of files) {
-      if (file.endsWith(".md")) {
-        const filePath = path.join(this.commandsDir, file);
-        const content = await fs.readFile(filePath, "utf-8");
-        await this.notifyHandlers("add", filePath, content);
+      // Load initial files
+      try {
+        const files = await fs.readdir(commandsDir);
+        for (const file of files) {
+          if (file.endsWith(".md")) {
+            const filePath = path.join(commandsDir, file);
+            const content = await fs.readFile(filePath, "utf-8");
+            await this.notifyHandlers("add", filePath, content);
+          }
+        }
+      } catch (error) {
+        console.error(`Failed to read directory ${commandsDir}:`, error);
       }
     }
 
-    // Start watching
-    this.watcher = chokidar.watch(path.join(this.commandsDir, "*.md"), {
+    // Start watching all directories
+    const patterns = this.commandsDirs.map((dir) => path.join(dir, "*.md"));
+    this.watcher = chokidar.watch(patterns, {
       persistent: true,
       ignoreInitial: true,
       awaitWriteFinish: {

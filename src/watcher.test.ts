@@ -277,7 +277,7 @@ describe('CommandWatcher', () => {
     // Create and modify rapidly
     const testFile = path.join(testDir, 'rapid.md');
     for (let i = 0; i < 5; i++) {
-      await fs.writeFile(testFile, `content ${i}`);
+      await fs.writeFile(testFile, `content #{i}`);
       await new Promise((resolve) => setTimeout(resolve, 50));
     }
 
@@ -297,7 +297,7 @@ describe('CommandWatcher', () => {
 
     // Create multiple files concurrently
     const files = Array.from({ length: 3 }, (_, i) =>
-      fs.writeFile(path.join(testDir, `file${i}.md`), `content ${i}`)
+      fs.writeFile(path.join(testDir, `file#{i}.md`), `content #{i}`)
     );
 
     await Promise.all(files);
@@ -328,5 +328,49 @@ describe('CommandWatcher', () => {
     await new Promise((resolve) => setTimeout(resolve, 500));
 
     expect(handler).toHaveBeenCalled();
+  });
+
+  it('watches multiple directories', async () => {
+    // Create two test directories
+    const testDir2 = path.join(__dirname, `../.test-${Date.now()}-${Math.random()}-2`);
+    await fs.mkdir(testDir2, { recursive: true });
+
+    try {
+      // Create files in both directories
+      const file1 = path.join(testDir, 'cmd1.md');
+      const file2 = path.join(testDir2, 'cmd2.md');
+      await fs.writeFile(file1, 'Command 1');
+      await fs.writeFile(file2, 'Command 2');
+
+      const handler = vi.fn();
+      watcher = new CommandWatcher([testDir, testDir2]);
+      watcher.onFileChange(handler);
+      await watcher.start();
+
+      // Give it time to process
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
+      // Should have been called for both files
+      expect(handler).toHaveBeenCalledWith('add', file1, 'Command 1');
+      expect(handler).toHaveBeenCalledWith('add', file2, 'Command 2');
+
+      // Clear previous calls
+      handler.mockClear();
+
+      // Add a new file to second directory
+      const file3 = path.join(testDir2, 'cmd3.md');
+      await fs.writeFile(file3, 'Command 3');
+
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
+      // Should have been called for the new file
+      const calls = handler.mock.calls.filter(
+        (call) => call[1] === file3 && call[2] === 'Command 3'
+      );
+      expect(calls.length).toBeGreaterThan(0);
+    } finally {
+      // Clean up second directory
+      await fs.rm(testDir2, { recursive: true, force: true });
+    }
   });
 });
