@@ -42,150 +42,130 @@ const buildASTFromBody = (
   frontmatter: Record<string, { value: string; optional: boolean }>
 ): { ast: ASTNode[]; variables: Placeholder[] } => {
   type BlockContext = { variable?: string; content: ASTNode[] };
-  type ParserState = {
-    blockStack: BlockContext[];
-    seenVariables: Map<string, Placeholder>;
-    lastIndex: number;
-  };
+
+  const seenVariables = new Map<string, Placeholder>();
+  const blockStack: BlockContext[] = [{ content: [] }];
+  let lastIndex = 0;
 
   const placeholderMatches = Array.from(body.matchAll(PLACEHOLDER_PATTERN));
 
-  // Process all matches using reduce
-  const finalState = placeholderMatches.reduce<ParserState>(
-    (state, match) => {
-      const matchStartIndex = match.index ?? 0;
-      const matchEndIndex = matchStartIndex + match[0].length;
-      const currentContext = state.blockStack[state.blockStack.length - 1];
+  // Process each match with handlers
+  for (const match of placeholderMatches) {
+    const matchStartIndex = match.index ?? 0;
+    const matchEndIndex = matchStartIndex + match[0].length;
+    const currentContext = blockStack[blockStack.length - 1];
 
-      // Add preceding text
-      const precedingText = body.slice(state.lastIndex, matchStartIndex);
-      if (precedingText) {
-        currentContext.content.push(precedingText);
+    // Add preceding text
+    const precedingText = body.slice(lastIndex, matchStartIndex);
+    if (precedingText) {
+      currentContext.content.push(precedingText);
+    }
+
+    const [fullMatch, prefix = '', name = '', suffix = ''] = match;
+    const trimmedName = name.trim();
+
+    // Handler for block start: #{?variable}
+    const handleBlockStart = () => {
+      if (!trimmedName) {
+        currentContext.content.push(fullMatch);
+        return;
       }
 
-      const [fullMatch, prefix = '', name = '', suffix = ''] = match;
-      const trimmedName = name.trim();
-
-      // Handler for block start
-      const handleBlockStart = (): ParserState => {
-        if (!trimmedName) {
-          currentContext.content.push(fullMatch);
-          return state;
-        }
-
-        if (!frontmatter[trimmedName]) {
-          frontmatter[trimmedName] = {
-            value: `Conditional block for ${trimmedName}`,
-            optional: true,
-          };
-        }
-
-        return {
-          ...state,
-          blockStack: [
-            ...state.blockStack,
-            { variable: trimmedName, content: [] },
-          ],
+      if (!frontmatter[trimmedName]) {
+        frontmatter[trimmedName] = {
+          value: `Conditional block for ${trimmedName}`,
+          optional: true,
         };
+      }
+
+      blockStack.push({ variable: trimmedName, content: [] });
+    };
+
+    // Handler for block end: #{/variable} or #{/}
+    const handleBlockEnd = () => {
+      if (blockStack.length <= 1) {
+        currentContext.content.push(fullMatch);
+        return;
+      }
+
+      const closedBlock = blockStack[blockStack.length - 1];
+      const parentContext = blockStack[blockStack.length - 2];
+
+      if (
+        !closedBlock.variable ||
+        (trimmedName && trimmedName !== closedBlock.variable)
+      ) {
+        closedBlock.content.push(fullMatch);
+        return;
+      }
+
+      blockStack.pop();
+
+      const block: ConditionalBlock = {
+        type: 'block',
+        variable: closedBlock.variable,
+        content: closedBlock.content,
       };
+      parentContext.content.push(block);
 
-      // Handler for block end
-      const handleBlockEnd = (): ParserState => {
-        if (state.blockStack.length <= 1) {
-          currentContext.content.push(fullMatch);
-          return state;
-        }
-
-        const closedBlock = state.blockStack[state.blockStack.length - 1];
-        const parentContext = state.blockStack[state.blockStack.length - 2];
-
-        if (
-          !closedBlock.variable ||
-          (trimmedName && trimmedName !== closedBlock.variable)
-        ) {
-          closedBlock.content.push(fullMatch);
-          return state;
-        }
-
-        const block: ConditionalBlock = {
-          type: 'block',
-          variable: closedBlock.variable,
-          content: closedBlock.content,
-        };
-        parentContext.content.push(block);
-
-        // Track variable
-        if (!state.seenVariables.has(closedBlock.variable)) {
-          const placeholder: Placeholder = {
-            type: 'placeholder',
-            name: closedBlock.variable,
-            description: frontmatter[closedBlock.variable]?.value,
-            optional: true,
-          };
-          state.seenVariables.set(closedBlock.variable, placeholder);
-        }
-
-        return {
-          ...state,
-          blockStack: state.blockStack.slice(0, -1),
-        };
-      };
-
-      // Handler for regular placeholder
-      const handlePlaceholder = (): ParserState => {
-        const isOptional = !!suffix;
-        const frontmatterEntry = frontmatter[trimmedName];
-
-        if (!trimmedName || !frontmatterEntry) {
-          currentContext.content.push(fullMatch);
-          return state;
-        }
-
+      // Track variable
+      if (!seenVariables.has(closedBlock.variable)) {
         const placeholder: Placeholder = {
           type: 'placeholder',
-          name: trimmedName,
-          description: frontmatterEntry.value,
-          start: matchStartIndex,
-          end: matchEndIndex,
-          optional: isOptional || frontmatterEntry.optional,
+          name: closedBlock.variable,
+          description: frontmatter[closedBlock.variable]?.value,
+          optional: true,
         };
+        seenVariables.set(closedBlock.variable, placeholder);
+      }
+    };
 
-        currentContext.content.push(placeholder);
+    // Handler for regular placeholder: #{variable} or #{variable?}
+    const handlePlaceholder = () => {
+      const isOptional = !!suffix;
+      const frontmatterEntry = frontmatter[trimmedName];
 
-        if (!state.seenVariables.has(trimmedName)) {
-          state.seenVariables.set(trimmedName, placeholder);
-        }
+      if (!trimmedName || !frontmatterEntry) {
+        currentContext.content.push(fullMatch);
+        return;
+      }
 
-        return state;
+      const placeholder: Placeholder = {
+        type: 'placeholder',
+        name: trimmedName,
+        description: frontmatterEntry.value,
+        start: matchStartIndex,
+        end: matchEndIndex,
+        optional: isOptional || frontmatterEntry.optional,
       };
 
-      // Route to appropriate handler
-      const nextState =
-        prefix === '?'
-          ? handleBlockStart()
-          : prefix === '/'
-            ? handleBlockEnd()
-            : handlePlaceholder();
+      currentContext.content.push(placeholder);
 
-      return { ...nextState, lastIndex: matchEndIndex };
-    },
-    {
-      blockStack: [{ content: [] }],
-      seenVariables: new Map(),
-      lastIndex: 0,
+      if (!seenVariables.has(trimmedName)) {
+        seenVariables.set(trimmedName, placeholder);
+      }
+    };
+
+    // Route to appropriate handler
+    if (prefix === '?') {
+      handleBlockStart();
+    } else if (prefix === '/') {
+      handleBlockEnd();
+    } else {
+      handlePlaceholder();
     }
-  );
+
+    lastIndex = matchEndIndex;
+  }
 
   // Add remaining text
-  const remainingText = body.slice(finalState.lastIndex);
+  const remainingText = body.slice(lastIndex);
   if (remainingText) {
-    finalState.blockStack[finalState.blockStack.length - 1].content.push(
-      remainingText
-    );
+    blockStack[blockStack.length - 1].content.push(remainingText);
   }
 
   // Handle unclosed blocks
-  const unclosedCount = finalState.blockStack.length - 1;
+  const unclosedCount = blockStack.length - 1;
   if (unclosedCount > 0) {
     console.warn(
       `Warning: ${unclosedCount} unclosed conditional block(s) detected`
@@ -195,20 +175,20 @@ const buildASTFromBody = (
   const ast =
     unclosedCount > 0
       ? [
-          ...finalState.blockStack
+          ...blockStack
             .slice(1)
             .reverse()
             .flatMap(block => [
               ...(block.variable ? [`#{?${block.variable}}`] : []),
               ...block.content,
             ]),
-          ...finalState.blockStack[0].content,
+          ...blockStack[0].content,
         ]
-      : finalState.blockStack[0].content;
+      : blockStack[0].content;
 
   return {
     ast,
-    variables: Array.from(finalState.seenVariables.values()),
+    variables: Array.from(seenVariables.values()),
   };
 };
 
