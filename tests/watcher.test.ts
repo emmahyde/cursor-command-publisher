@@ -140,6 +140,9 @@ describe('CommandWatcher', () => {
     });
     const normalHandler = vi.fn();
 
+    // Suppress expected errors
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
     watcher.onFileChange(errorHandler);
     watcher.onFileChange(normalHandler);
     await watcher.start();
@@ -156,6 +159,8 @@ describe('CommandWatcher', () => {
     const totalCalls =
       errorHandler.mock.calls.length + normalHandler.mock.calls.length;
     expect(totalCalls).toBeGreaterThan(0);
+
+    errorSpy.mockRestore();
   });
 
   it('stops watching when stop is called', async () => {

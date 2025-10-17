@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { parseTemplate, renderTemplate } from '../src/parser.ts';
 
 describe('Parser - YAML Frontmatter Extraction', () => {
@@ -781,10 +781,16 @@ author?: "author name"
 #{?author}
 Content
 #{/wrongname}`;
+
+    // Suppress expected warning
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
     const parsed = parseTemplate(template);
     const result = renderTemplate(parsed, { author: 'Emma' });
     // Mismatched end tag should be treated as literal
     expect(result).toContain('#{/wrongname}');
+
+    warnSpy.mockRestore();
   });
 
   it('treats unclosed block as warning', () => {
@@ -793,8 +799,14 @@ author?: "author name"
 ---
 #{?author}
 Content without closing tag`;
+
+    // Suppress expected warning
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
     // Should not throw, but may log warning
     expect(() => parseTemplate(template)).not.toThrow();
+
+    warnSpy.mockRestore();
   });
 
   it('handles block without defined variable in frontmatter', () => {
