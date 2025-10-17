@@ -1,19 +1,21 @@
-# cursor-command-publisher
+# command-publisher
 
-A lightweight MCP (Model Context Protocol) server that dynamically loads and executes command templates from markdown files. Templates use simple `${variable, "description"}` syntax for parameterized commands.
+A lightweight MCP (Model Context Protocol) server that dynamically loads and executes command templates from markdown files. Templates use YAML frontmatter for variable definitions and `#{variable}` placeholders for parameterized commands.
 
 ## One-Click Install
 
-[![Add to Cursor](https://img.shields.io/badge/Add_to-Cursor-blue?style=for-the-badge&logo=cursor)](cursor://anysphere.cursor-deeplink/mcp/install?name=cursor-command-publisher&config=eyJjb21tYW5kIjoibnB4IiwiYXJncyI6WyIteSIsImN1cnNvci1jb21tYW5kLXB1Ymxpc2hlciJdfQ%3D%3D)
-
-Click the button above to automatically install via `npx` - no manual configuration needed!
+[![Install in VS Code](https://img.shields.io/badge/Install_in-VS_Code-0098FF?style=flat-square&logo=visualstudiocode&logoColor=white)](https://vscode.dev/redirect/mcp/install?name=cursor-command-publisher&config=%7B%22command%22%3A%22npx%22%2C%22args%22%3A%5B%22-y%22%2C%22cursor-command-publisher%22%5D%2C%22env%22%3A%7B%7D%7D)
+[![Install in Cursor](https://img.shields.io/badge/Install_in-Cursor-000000?style=flat-square&logoColor=white)](https://cursor.com/en/install-mcp?name=cursor-command-publisher&config=eyJuYW1lIjoiY3Vyc29yLWNvbW1hbmQtcHVibGlzaGVyIiwiY29tbWFuZCI6Im5weCIsImFyZ3MiOlsiLXkiLCJjdXJzb3ItY29tbWFuZC1wdWJsaXNoZXIiXSwiZW52Ijp7fX0=)
 
 ## Features
 
-- **Dynamic Command Loading**: Watch a directory for `.md` files and automatically register them as MCP tools
+- **Dynamic Command Loading**: Watch a directory for `.md` files and automatically register them as MCP tools and prompts
 - **Live Reloading**: Changes to template files are detected instantly
-- **Simple Template Syntax**: Use `${varName, "description"}` for parameters
-- **Minimal Dependencies**: Only uses `@modelcontextprotocol/sdk` and `chokidar`
+- **YAML Frontmatter**: Clean variable definitions with descriptions in one place
+- **Simple Template Syntax**: Use `#{varName}` for placeholders
+- **Code Block Aware**: Automatically ignores placeholders inside fenced code blocks
+- **Dual Registration**: Each template is exposed as both a tool and a prompt
+- **Minimal Dependencies**: Only uses `@modelcontextprotocol/sdk`, `chokidar`, and `yaml`
 - **Local Only**: No network ports or API keys required
 
 ## Quick Start
@@ -32,32 +34,42 @@ npm run build
 
 ### 3. Create Command Templates
 
-Create a `.cursor/commands/` directory and add markdown files with templates:
+Create a `.cursor/published/` directory and add markdown files with templates:
 
 ```bash
-mkdir -p .cursor/commands
+mkdir -p .cursor/published
 ```
 
-**Example: `.cursor/commands/summarize.md`**
+**Example: `.cursor/published/summarize.md`**
 
+```markdown
+---
+format: "output format (bullet points, paragraph, etc)"
+text: "the text to summarize"
+---
+
+Summarize the following text in #{format} format:
+
+#{text}
 ```
-Summarize the following text in ${format, "output format (bullet points, paragraph, etc)"} format:
 
-${text, "the text to summarize"}
-```
+**Example: `.cursor/published/translate.md`**
 
-**Example: `.cursor/commands/translate.md`**
+```markdown
+---
+language: "target language"
+text: "the text to translate"
+---
 
-```
-Translate the following text to ${language, "target language"} language:
+Translate the following text to #{language} language:
 
-${text, "the text to translate"}
+#{text}
 ```
 
 ### 4. Run the Server
 
 ```bash
-# Default (looks for .cursor/commands in current directory)
+# Default (looks for .cursor/published in current directory)
 node build/index.js
 
 # Or specify a custom directory
@@ -66,41 +78,93 @@ COMMANDS_DIR=/path/to/commands node build/index.js
 
 ## Template Syntax
 
-Templates use a simple variable placeholder format:
+Templates use YAML frontmatter for variable definitions and `#{variableName}` for placeholders:
 
-```
-${variableName, "human-readable description"}
+```markdown
+---
+variableName: "human-readable description"
+anotherVar: "another description"
+---
+
+Template content with #{variableName} and #{anotherVar} placeholders.
 ```
 
+**Key Features:**
 - Variable names must be valid identifiers (alphanumeric, underscore)
-- Descriptions are optional
-- Variables can appear multiple times in a template
-- The tokenizer safely handles commas and quotes inside descriptions
+- Descriptions defined in YAML frontmatter
+- Variables can appear multiple times in the template body
+- Uses `#{}` syntax (avoids conflicts with JavaScript templates)
+- **Code blocks are ignored**: Placeholders inside ` ``` ` fenced blocks are treated as literal text
+- YAML supports multiline values and special characters
 
 ### Examples
 
-**Simple variable:**
-```
-Run: ${command}
-```
+**Simple variables:**
 
-**Variable with description:**
-```
-Execute: ${command, "shell command to run"}
+```markdown
+---
+command: "shell command to run"
+---
+
+Run: #{command}
 ```
 
 **Multiple variables:**
+
+```markdown
+---
+host: "hostname or IP"
+port: "port number"
+user: "login username"
+---
+
+Connect to #{host} on port #{port} using username #{user}
 ```
-Connect to ${host, "hostname or IP"} on port ${port, "port number"}
-using username ${user, "login username"}
+
+**Complex template with multiline YAML:**
+
+```markdown
+---
+code: "the code to explain"
+audience: "who needs the explanation"
+---
+
+# Code Explanation
+
+Explain the following code for #{audience}:
+
 ```
+#{code}
+```
+
+Focus on what it does and why.
+```
+
+**Code block awareness:**
+
+```markdown
+---
+name: "person's name"
+---
+
+Hello #{name}!
+
+Here's the syntax we use:
+\`\`\`
+#{variable_name}  <- This is NOT extracted as a variable
+\`\`\`
+
+Goodbye #{name}!
+```
+
+In this example, only `name` is extracted as a variable. The `#{variable_name}` inside the code block is treated as literal text.
 
 ## How It Works
 
-1. **Startup**: Server scans `.cursor/commands/` for `.md` files and parses them
-2. **Registration**: Each template is registered as an MCP tool with variables as parameters
-3. **Watching**: File changes are detected via `chokidar` and tools are updated in real-time
-4. **Execution**: When a tool is called, variables are substituted and the result is returned
+1. **Startup**: Server scans `.cursor/published/` for `.md` files and parses them
+2. **Registration**: Each template is registered as both an MCP tool and prompt with variables as parameters
+3. **Watching**: File changes are detected via `chokidar` and tools/prompts are updated in real-time
+4. **Execution**: When a tool/prompt is called, variables are substituted and the result is returned
 
 ## MCP Configuration
 
@@ -109,11 +173,25 @@ To use this server with Claude in Cursor, add to your `.cursor/config.json`:
 ```json
 {
   "mcpServers": {
-    "command-server": {
+    "command-publisher": {
+      "command": "npx",
+      "args": ["-y", "cursor-command-publisher"],
+      "env": {}
+    }
+  }
+}
+```
+
+Or specify a custom directory:
+
+```json
+{
+  "mcpServers": {
+    "command-publisher": {
       "command": "node",
-      "args": ["/path/to/mcp-command-server/build/index.js"],
+      "args": ["/path/to/cursor-command-publisher/build/index.js"],
       "env": {
-        "COMMANDS_DIR": "/path/to/.cursor/commands"
+        "COMMANDS_DIR": "/custom/path"
       }
     }
   }
@@ -132,9 +210,9 @@ src/
 
 ### Key Components
 
-- **Parser**: Safe tokenizer that handles edge cases (commas in quotes, escaped characters)
+- **Parser**: YAML frontmatter parser with `#{}` placeholder extraction, automatically skips fenced code blocks
 - **Watcher**: Monitors directory and notifies of changes
-- **Server**: Registers tools dynamically and executes template rendering
+- **Server**: Registers tools and prompts dynamically, executes template rendering
 
 ## Development
 
@@ -158,7 +236,7 @@ node build/index.js
 
 ## Environment Variables
 
-- `COMMANDS_DIR`: Directory to watch for template files (default: `.cursor/commands`)
+- `COMMANDS_DIR`: Directory to watch for template files (default: `~/.cursor/command-publisher` and `./.cursor/command-publisher`)
 
 ## File Watching Behavior
 
