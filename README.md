@@ -124,14 +124,6 @@ anotherVar: "another description"
 Template content with #{variableName} and #{anotherVar} placeholders.
 ```
 
-**Key Features:**
-- Variable names must be valid identifiers (alphanumeric, underscore)
-- Descriptions defined in YAML frontmatter
-- Variables can appear multiple times in the template body
-- Uses `#{}` syntax (avoids conflicts with JavaScript templates)
-- **Code blocks are ignored**: Placeholders inside ` ``` ` fenced blocks are treated as literal text
-- YAML supports multiline values and special characters
-
 ### Examples
 
 **Simple variables**
