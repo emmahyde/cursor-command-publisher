@@ -1,0 +1,30 @@
+{
+  "$schema": "https://registry.modelcontextprotocol.io/schema/server.json",
+  "name": "io.github.emmahyde/mcp-command-server",
+  "title": "MCP Command Server",
+  "description": "Dynamic MCP server that loads command templates from markdown files with variable substitution. Create reusable commands in .md files with ${variable} syntax and have them automatically registered as MCP tools.",
+  "version": "1.0.0",
+  "homepage": "https://github.com/emmahyde/mcp-command-server",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/emmahyde/mcp-command-server"
+  },
+  "author": "Emma Hyde",
+  "license": "MIT",
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "mcp-command-server",
+      "version": "1.0.0",
+      "transport": "stdio"
+    }
+  ],
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "command-server",
+    "dynamic-tools",
+    "templates",
+    "markdown"
+  ]
+}
