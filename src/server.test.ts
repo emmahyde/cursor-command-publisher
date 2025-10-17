@@ -87,6 +87,39 @@ describe('CommandServer', () => {
     await (server as any).watcher.stop();
   });
 
+  it('registers new tool when file is saved after startup', async () => {
+    // Start server with empty directory
+    server = new CommandServer(testDir);
+    await (server as any).watcher.start();
+    await new Promise((resolve) => setTimeout(resolve, 200));
+
+    // Verify no tools initially
+    let tools = (server as any).tools;
+    expect(tools.size).toBe(0);
+
+    // User saves a new command file
+    const newCmdFile = path.join(testDir, 'newsave.md');
+    const content = 'Translate: ${from, "source"} to ${to, "target"}: ${text}';
+    await fs.writeFile(newCmdFile, content);
+
+    // Wait for watcher to detect and process
+    await new Promise((resolve) => setTimeout(resolve, 500));
+
+    // Verify tool was registered
+    tools = (server as any).tools;
+    expect(tools.has('newsave')).toBe(true);
+
+    const tool = tools.get('newsave');
+    expect(tool?.parsed.vars).toHaveLength(3);
+    expect(tool?.parsed.vars.map((v: any) => v.name)).toEqual([
+      'from',
+      'to',
+      'text',
+    ]);
+
+    await (server as any).watcher.stop();
+  });
+
   it('updates tools when files change', async () => {
     const cmdFile = path.join(testDir, 'update.md');
     await fs.writeFile(cmdFile, 'Version 1: ${var}');
