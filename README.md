@@ -1,6 +1,6 @@
 # Command Publisher
 
-[![npm version](https://badge.fury.io/js/cursor-command-publisher.svg?icon=si%3Anpm)](https://badge.fury.io/js/cursor-command-publisher)
+[![npm version](https://img.shields.io/npm/v/cursor-command-publisher.svg)](https://www.npmjs.com/package/cursor-command-publisher)
 
 [![Add to Cursor](https://img.shields.io/badge/Add_to-Cursor-000000?style=flat-square&logoColor=white)](https://cursor.com/en/install-mcp?name=cmdpublisher&config=eyJuYW1lIjoiY21kcHVibGlzaGVyIiwiY29tbWFuZCI6Im5weCIsImFyZ3MiOlsiLXkiLCJjdXJzb3ItY29tbWFuZC1wdWJsaXNoZXIiXSwiZW52Ijp7fX0=)
 
